@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>делим — стаи и съквартиранти за студенти във Варна</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F3F6F4; --ink:#16232E; --muted:#5B6B77; --line:#D5DDD9; --card:#FFFFFF;
+  --sea:#BCD7E9; --lake:#CADFEA; --land:#E6EBE4; --park:#D6E4D0; --road:#FFFFFF;
+  --hl:#FFD83D; --marine:#1F5FA8; --ok:#1E8A5A; --warn:#B8660B;
+  --display:"Unbounded", "Arial Black", system-ui, sans-serif;
+  --body:"Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#11181E; --ink:#E7EDF1; --muted:#93A2AD; --line:#2A3640; --card:#18222A;
+    --sea:#173246; --lake:#1B3747; --land:#1B252C; --park:#1D2E24; --road:#2A3741;
+    --hl:#F2C928; --marine:#78AEEB; --ok:#4CC08A; --warn:#E3A04A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11181E; --ink:#E7EDF1; --muted:#93A2AD; --line:#2A3640; --card:#18222A;
+  --sea:#173246; --lake:#1B3747; --land:#1B252C; --park:#1D2E24; --road:#2A3741;
+  --hl:#F2C928; --marine:#78AEEB; --ok:#4CC08A; --warn:#E3A04A;
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--marine);outline-offset:2px}
+
+.app{height:100%;display:flex;flex-direction:column;max-width:760px;margin:0 auto;position:relative}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:10px;padding:12px 16px 8px}
+.brand{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.02em;line-height:1}
+.brand span{background:linear-gradient(transparent 55%, var(--hl) 55%, var(--hl) 92%, transparent 92%);padding:0 2px}
+.uni{margin-left:auto;display:flex;align-items:center;gap:6px;background:var(--card);border:1.5px solid var(--ink);border-radius:999px;padding:6px 10px 6px 12px;font-weight:700;font-size:13px}
+.uni select{border:0;background:transparent;font-weight:700;font-size:13px;appearance:none;padding-right:2px}
+.me{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--ink);background:var(--hl);color:#16232E;font-weight:800;font-size:13px;flex:none}
+
+.chips{display:flex;gap:8px;padding:4px 16px 10px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:7px 13px;font-weight:600;font-size:13px;white-space:nowrap}
+.chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+
+main{flex:1;min-height:0;position:relative}
+.view{position:absolute;inset:0}
+.view[hidden]{display:none}
+
+/* map */
+#map{width:100%;height:100%;display:block;touch-action:manipulation}
+.m-sea{fill:var(--sea)} .m-lake{fill:var(--lake)} .m-land{fill:var(--land)} .m-park{fill:var(--park)}
+.m-road{stroke:var(--road);stroke-width:5;fill:none;stroke-linecap:round}
+.m-road.thin{stroke-width:3}
+.m-dist{font-family:var(--body);font-size:10px;font-weight:700;fill:var(--muted);letter-spacing:.02em}
+.m-water{font-family:var(--body);font-size:11px;font-style:italic;fill:var(--marine);opacity:.7}
+.uni-mk rect{fill:var(--card);stroke:var(--marine);stroke-width:1.5}
+.uni-mk text{font-family:var(--body);font-size:9px;font-weight:800;fill:var(--marine)}
+.uni-mk.on rect{fill:var(--marine)} .uni-mk.on text{fill:var(--card)}
+.ring{fill:none;stroke:var(--marine);stroke-width:1;stroke-dasharray:3 4;opacity:.55}
+.pin{cursor:pointer}
+.pin rect{fill:var(--card);stroke:var(--ink);stroke-width:1.5}
+.pin text{font-family:var(--body);font-size:12px;font-weight:800;fill:var(--ink)}
+.pin.match rect{fill:var(--hl)} .pin.match text{fill:#16232E}
+.pin.sel rect{fill:var(--ink)} .pin.sel text{fill:var(--paper)}
+.pin.new rect{animation:pulse 1.2s ease-out 3}
+@keyframes pulse{0%{stroke-width:1.5}50%{stroke-width:6}100%{stroke-width:1.5}}
+.legend{position:absolute;left:12px;top:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;color:var(--muted);display:flex;gap:10px;align-items:center}
+.sw{display:inline-block;width:14px;height:10px;border-radius:3px;border:1.5px solid var(--ink);vertical-align:-1px;margin-right:4px}
+
+/* list */
+#list{overflow-y:auto;padding:4px 16px 110px}
+.count{font-size:13px;color:var(--muted);margin:4px 0 10px}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.row h3{margin:0;font-size:15px;line-height:1.3}
+.row .pp{font-family:var(--display);font-weight:700;font-size:18px;text-align:right}
+.row .meta{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.row .tags{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.tag{font-size:12px;font-weight:700;border-radius:6px;padding:2px 7px;background:var(--paper);border:1px solid var(--line)}
+.tag.m{background:var(--hl);border-color:transparent;color:#16232E}
+.empty{text-align:center;padding:40px 10px;color:var(--muted)}
+.empty button{margin-top:10px}
+
+/* bottom controls */
+.dock{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;gap:10px;pointer-events:none;z-index:5}
+.seg{pointer-events:auto;display:flex;background:var(--ink);border-radius:999px;padding:4px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.seg button{border:0;background:transparent;color:var(--paper);font-weight:700;padding:9px 16px;border-radius:999px;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink)}
+.fab{pointer-events:auto;border:1.5px solid var(--ink);background:var(--hl);color:#16232E;font-weight:800;border-radius:999px;padding:0 18px;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+
+/* sheets */
+.backdrop{position:fixed;inset:0;background:rgba(10,16,22,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.backdrop.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:760px;margin:0 auto;max-height:88%;overflow-y:auto;background:var(--card);border-radius:20px 20px 0 0;z-index:21;transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding:10px 20px calc(24px + env(safe-area-inset-bottom,0px))}
+.sheet.on{transform:none}
+@media (prefers-reduced-motion: reduce){.sheet,.backdrop{transition:none}.pin.new rect{animation:none}}
+.grab{width:40px;height:4px;border-radius:4px;background:var(--line);margin:0 auto 12px}
+.close{float:right;border:0;background:var(--paper);width:32px;height:32px;border-radius:50%;font-size:18px;line-height:1}
+.sheet h2{font-family:var(--display);font-weight:500;font-size:20px;line-height:1.25;margin:4px 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:14px;margin:0 0 14px}
+
+.price{display:flex;align-items:baseline;gap:8px;margin:6px 0 2px}
+.price b{font-family:var(--display);font-weight:700;font-size:36px;letter-spacing:-.03em;line-height:1}
+.price span{color:var(--muted);font-size:14px}
+.calc{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0 16px}
+.calc td{padding:6px 0;border-bottom:1px dashed var(--line)}
+.calc td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.calc tr:last-child td{border-bottom:0;border-top:1.5px solid var(--ink);padding-top:8px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
+.fact{background:var(--paper);border-radius:12px;padding:10px 12px}
+.fact small{display:block;color:var(--muted);font-size:12px}
+.fact strong{font-size:15px}
+.who{display:flex;gap:12px;align-items:center;margin:4px 0 12px}
+.av{width:48px;height:48px;border-radius:50%;background:var(--marine);color:var(--card);display:grid;place-items:center;font-weight:800;flex:none}
+.who p{margin:0;font-size:13px;color:var(--muted)}
+.who strong{font-size:16px}
+.section-t{font-weight:800;font-size:15px;margin:18px 0 8px}
+.match{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.bar{flex:1;height:10px;border-radius:6px;background:var(--paper);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--hl);border-right:1.5px solid var(--ink)}
+.match b{font-family:var(--display);font-size:20px}
+.why{list-style:none;padding:0;margin:0 0 14px;font-size:14px}
+.why li{padding:5px 0 5px 24px;position:relative}
+.why li::before{position:absolute;left:0;top:5px;font-weight:800}
+.why li.y::before{content:"✓";color:var(--ok)} .why li.n::before{content:"!";color:var(--warn)}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 18px}
+.badge{font-size:12px;font-weight:700;border:1.5px solid var(--ok);color:var(--ok);border-radius:999px;padding:4px 10px}
+.badge.no{border-color:var(--warn);color:var(--warn)}
+.cta{width:100%;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:800;font-size:16px;border-radius:14px;padding:14px}
+.cta.alt{background:var(--hl);color:#16232E}
+.note{font-size:12px;color:var(--muted);text-align:center;margin:8px 0 0}
+
+/* forms */
+.field{margin-bottom:14px}
+.field label,.field .lbl{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
+.field input[type=number]{width:100%;border:1.5px solid var(--line);background:var(--paper);border-radius:10px;padding:10px 12px;font-size:16px}
+.field input[type=range]{width:100%;accent-color:var(--marine)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opts{display:flex;gap:6px;flex-wrap:wrap}
+.opts button{border:1.5px solid var(--line);background:var(--paper);border-radius:10px;padding:8px 12px;font-weight:600;font-size:14px}
+.opts button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+.rv{float:right;font-weight:800;font-variant-numeric:tabular-nums}
+.preview{background:var(--paper);border:1.5px dashed var(--ink);border-radius:14px;padding:14px;margin:6px 0 16px}
+.preview h4{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:700}
+.preview .big{font-family:var(--display);font-weight:700;font-size:26px}
+
+/* chat */
+.msgs{display:flex;flex-direction:column;gap:8px;margin:10px 0 14px;min-height:80px}
+.bub{max-width:82%;padding:10px 13px;border-radius:16px;font-size:14px}
+.bub.me{align-self:flex-end;background:var(--marine);color:var(--card);border-bottom-right-radius:4px}
+.bub.sys{align-self:center;background:var(--paper);color:var(--muted);font-size:12px;text-align:center;border-radius:10px}
+textarea{width:100%;min-height:90px;border:1.5px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical;color:var(--ink)}
+
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translate(-50%,-150%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;z-index:40;transition:transform .25s;max-width:90%}
+.toast.on{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><span>делим</span></div>
+    <label class="uni" title="Твоят университет">🎓
+      <select id="uniSel" aria-label="Университет">
+        <option value="IU">ИУ</option>
+        <option value="MU">МУ</option>
+        <option value="TU">ТУ</option>
+        <option value="VSU">ВСУ</option>
+      </select>
+    </label>
+    <button class="me" id="meBtn" aria-label="Моят профил">Аз</button>
+  </header>
+
+  <div class="chips" role="toolbar" aria-label="Бързи филтри">
+    <button class="chip" data-type="room" aria-pressed="false">Стая при студент</button>
+    <button class="chip" data-type="whole" aria-pressed="false">Цяло жилище</button>
+    <button class="chip" id="chipBudget">До €<span id="chipBudgetV">400</span>/човек</button>
+    <button class="chip" id="chipCommute">До <span id="chipCommuteV">30</span> мин път</button>
+    <button class="chip" id="chipMore">Филтри</button>
+  </div>
+
+  <main>
+    <section class="view" id="mapView" aria-label="Карта">
+      <svg id="map" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Карта на Варна с обяви"></svg>
+      <div class="legend"><span><i class="sw" style="background:var(--hl)"></i>80%+ съвпадение</span><span>цена на човек, със сметките</span></div>
+    </section>
+    <section class="view" id="list" hidden aria-label="Списък"></section>
+  </main>
+
+  <div class="dock">
+    <div class="seg" role="group" aria-label="Изглед">
+      <button id="vMap" aria-pressed="true">Карта</button>
+      <button id="vList" aria-pressed="false">Списък</button>
+    </div>
+    <button class="fab" id="newBtn">+ Обява</button>
+  </div>
+</div>
+
+<div class="backdrop" id="bd"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheetBody"></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+const UNIS = {
+  IU:{name:"Икономически университет", short:"ИУ", x:268, y:352},
+  MU:{name:"Медицински университет", short:"МУ", x:232, y:392},
+  TU:{name:"Технически университет", short:"ТУ", x:246, y:268},
+  VSU:{name:"Варненски свободен университет", short:"ВСУ", x:318, y:236}
+};
+
+const listings = [
+  {id:1,type:"room",title:"Свободна спалня в двустаен",dist:"Младост",x:132,y:330,rent:600,people:2,util:65,pref:"m",months:24,from:"1 октомври",
+    host:{name:"Иван",ini:"ИП",info:"3 курс, Информатика, ИУ",smoke:0,sleep:"late",clean:2,guests:2},landlordOk:true,verified:true},
+  {id:2,type:"room",title:"Стая с балкон до морската градина",dist:"Чайка",x:300,y:262,rent:560,people:2,util:70,pref:"f",months:10,from:"15 октомври",
+    host:{name:"Мария",ini:"МД",info:"2 курс, Медицина, МУ",smoke:0,sleep:"early",clean:3,guests:1},landlordOk:true,verified:true},
+  {id:3,type:"room",title:"Трета стая в тристаен",dist:"Левски",x:210,y:290,rent:780,people:3,util:90,pref:"m",months:12,from:"веднага",
+    host:{name:"Георги и Никола",ini:"ГН",info:"4 курс, Корабостроене, ТУ",smoke:1,sleep:"late",clean:1,guests:3},landlordOk:false,verified:true},
+  {id:4,type:"whole",title:"Гарсониера до Медицинския",dist:"Център",x:222,y:410,rent:420,people:1,util:60,pref:"a",months:12,from:"1 октомври",
+    host:null,agency:"Хазяин, частно лице",landlordOk:true,verified:false},
+  {id:5,type:"room",title:"Светла стая, 5 мин от плажа",dist:"Бриз",x:336,y:168,rent:700,people:2,util:80,pref:"f",months:12,from:"1 ноември",
+    host:{name:"Елена",ini:"ЕК",info:"1 курс, Архитектура, ВСУ",smoke:0,sleep:"late",clean:2,guests:2},landlordOk:true,verified:true},
+  {id:6,type:"room",title:"Стая в двустаен, тиха улица",dist:"Възраждане",x:88,y:228,rent:460,people:2,util:55,pref:"a",months:6,from:"веднага",
+    host:{name:"Стефан",ini:"СВ",info:"3 курс, Финанси, ИУ",smoke:0,sleep:"early",clean:2,guests:1},landlordOk:true,verified:true},
+  {id:7,type:"whole",title:"Двустаен за двама студенти",dist:"Трошево",x:168,y:228,rent:580,people:2,util:70,pref:"a",months:12,from:"1 октомври",
+    host:null,agency:"Агенция, 0% комисиона за студенти",landlordOk:true,verified:false},
+  {id:8,type:"room",title:"Стая в къща с двор",dist:"Аспарухово",x:150,y:520,rent:400,people:2,util:50,pref:"m",months:12,from:"1 октомври",
+    host:{name:"Калоян",ini:"КТ",info:"2 курс, Навигация, ВВМУ",smoke:1,sleep:"late",clean:2,guests:2},landlordOk:true,verified:true},
+  {id:9,type:"room",title:"Стая в тристаен до катедралата",dist:"Център",x:252,y:420,rent:840,people:3,util:100,pref:"f",months:12,from:"1 октомври",
+    host:{name:"Десислава",ini:"ДС",info:"5 курс, Дентална медицина, МУ",smoke:0,sleep:"early",clean:3,guests:1},landlordOk:true,verified:true},
+  {id:10,type:"room",title:"Стая до ТУ, обзаведена",dist:"Левски",x:238,y:250,rent:500,people:2,util:60,pref:"m",months:12,from:"веднага",
+    host:{name:"Мартин",ini:"МГ",info:"2 курс, Електроника, ТУ",smoke:0,sleep:"late",clean:2,guests:3},landlordOk:true,verified:true}
+];
+
+const state = {uni:"IU", types:new Set(), maxPrice:400, maxCommute:30, view:"map", sel:null,
+  me:{gender:"m", smoke:0, sleep:"late", clean:2, guests:2}};
+
+const $ = s => document.querySelector(s);
+const pp = l => Math.round(l.rent/l.people + l.util/l.people);
+const commute = (l,u) => { const U = UNIS[u||state.uni]; const d = Math.hypot(l.x-U.x,l.y-U.y); return Math.round(d*0.08 + 6 + (l.dist==="Аспарухово"?8:0)); };
+const prefTxt = p => p==="m"?"Мъж":p==="f"?"Жена":"Без значение";
+const sleepTxt = s => s==="late"?"Лягам късно":"Лягам рано";
+const cleanTxt = c => ["","Спокойно","Нормално","Много подредено"][c];
+const guestTxt = g => ["","Рядко гости","Понякога гости","Често гости"][g];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function compat(l){
+  if(!l.host) return {score:null, why:[]};
+  const h = l.host, m = state.me, why = []; let s = 100;
+  if(h.smoke!==m.smoke){ s-=25; why.push(["n", h.smoke?"Пуши вкъщи, а ти не":"Не пуши, а ти пушиш"]); } else why.push(["y", h.smoke?"И двамата пушите":"И двамата не пушите"]);
+  if(h.sleep!==m.sleep){ s-=15; why.push(["n","Различен режим на сън"]); } else why.push(["y","Еднакъв режим на сън"]);
+  const dc = Math.abs(h.clean-m.clean); s-=dc*12; why.push([dc? "n":"y", dc? "Различни разбирания за чистота":"Сходни разбирания за чистота"]);
+  const dg = Math.abs(h.guests-m.guests); s-=dg*9; why.push([dg? "n":"y", dg? "Различно отношение към гостите":"Сходно отношение към гостите"]);
+  return {score:Math.max(20,s), why};
+}
+function visible(){
+  return listings.filter(l=>{
+    if(state.types.size && !state.types.has(l.type)) return false;
+    if(l.pref!=="a" && l.pref!==state.me.gender) return false;
+    if(pp(l)>state.maxPrice) return false;
+    if(commute(l)>state.maxCommute) return false;
+    return true;
+  });
+}
+
+/* ---------- map ---------- */
+function drawMap(){
+  const vis = visible(), U = UNIS[state.uni];
+  let g = `
+  <rect class="m-land" x="0" y="0" width="400" height="560"/>
+  <path class="m-sea" d="M320 0 C340 60 372 120 360 190 C352 240 330 300 318 360 C308 405 300 440 280 470 L240 470 C210 470 200 490 230 505 C280 525 330 520 400 520 L400 0 Z M0 560 L400 560 L400 520 C330 520 290 540 250 548 L0 548 Z"/>
+  <path class="m-lake" d="M0 450 C60 440 120 455 180 462 C215 466 238 470 244 474 C225 488 200 492 160 490 C100 488 40 500 0 505 Z"/>
+  <path class="m-park" d="M292 300 C312 330 316 370 300 420 L286 426 C282 380 284 340 276 305 Z"/>
+  <path class="m-road" d="M20 300 C100 320 180 340 300 360"/>
+  <path class="m-road" d="M60 120 C120 200 200 330 250 450"/>
+  <path class="m-road thin" d="M200 150 C250 200 300 230 340 200"/>
+  <path class="m-road thin" d="M90 240 C150 250 220 260 300 250"/>
+  <path class="m-road thin" d="M140 430 C180 420 230 410 290 430"/>
+  <path class="m-road" d="M236 474 C210 495 180 505 150 530" stroke-dasharray="2 0"/>
+  <text class="m-water" x="352" y="300" transform="rotate(-78 352 300)">Черно море</text>
+  <text class="m-water" x="40" y="480">Варненско езеро</text>
+  <text class="m-dist" x="56" y="140">Владиславово</text>
+  <text class="m-dist" x="60" y="212">Възраждане</text>
+  <text class="m-dist" x="146" y="212">Трошево</text>
+  <text class="m-dist" x="108" y="356">Младост</text>
+  <text class="m-dist" x="186" y="312">Левски</text>
+  <text class="m-dist" x="296" y="286">Чайка</text>
+  <text class="m-dist" x="316" y="150">Бриз</text>
+  <text class="m-dist" x="198" y="440">Център</text>
+  <text class="m-dist" x="118" y="540">Аспарухово</text>
+  <circle class="ring" cx="${U.x}" cy="${U.y}" r="${(10-6)/0.08}"/>
+  <circle class="ring" cx="${U.x}" cy="${U.y}" r="${(20-6)/0.08}"/>`;
+  for(const k in UNIS){ const u = UNIS[k]; const w = u.short.length*7+10;
+    g += `<g class="uni-mk ${k===state.uni?'on':''}"><rect x="${u.x-w/2}" y="${u.y-8}" width="${w}" height="16" rx="3"/><text x="${u.x}" y="${u.y+3.5}" text-anchor="middle">${u.short}</text></g>`; }
+  const order = vis.slice().sort((a,b)=> (a.id===state.sel) - (b.id===state.sel));
+  for(const l of order){
+    const c = compat(l).score, label = "€"+pp(l), w = label.length*8+12;
+    const cls = ["pin", c!==null && c>=80 ? "match":"", l.id===state.sel?"sel":"", l.isNew?"new":""].join(" ");
+    g += `<g class="${cls}" data-id="${l.id}" tabindex="0" role="button" aria-label="${esc(l.title)}, ${label} на човек">
+      <path d="M${l.x-5} ${l.y-2} L${l.x} ${l.y+6} L${l.x+5} ${l.y-2}Z" fill="var(--ink)"/>
+      <rect x="${l.x-w/2}" y="${l.y-24}" width="${w}" height="22" rx="11"/>
+      <text x="${l.x}" y="${l.y-8.5}" text-anchor="middle">${label}</text></g>`;
+  }
+  $("#map").innerHTML = g;
+}
+
+/* ---------- list ---------- */
+function drawList(){
+  const vis = visible().map(l=>({l,c:compat(l).score})).sort((a,b)=>(b.c??-1)-(a.c??-1) || pp(a.l)-pp(b.l));
+  if(!vis.length){ $("#list").innerHTML = `<div class="empty">Нищо не отговаря на филтрите.<br>Увеличи бюджета или времето за път.<br><button class="chip" id="resetF">Изчисти филтрите</button></div>`; $("#resetF").onclick=resetFilters; return; }
+  $("#list").innerHTML = `<p class="count">${vis.length} ${vis.length===1?"обява":"обяви"}, подредени по съвпадение</p>` + vis.map(({l,c})=>`
+    <button class="row" data-id="${l.id}">
+      <h3>${esc(l.title)}</h3><div class="pp">€${pp(l)}</div>
+      <div class="meta">${l.dist} · ${commute(l)} мин до ${UNIS[state.uni].short} · от ${l.from}</div>
+      <div class="tags">${c!==null?`<span class="tag ${c>=80?'m':''}">${c}% съвпадение</span>`:`<span class="tag">Цяло жилище</span>`}
+      <span class="tag">${prefTxt(l.pref)}</span><span class="tag">мин. ${l.months} мес.</span></div>
+    </button>`).join("");
+}
+function resetFilters(){ state.types.clear(); state.maxPrice=600; state.maxCommute=60; syncChips(); render(); }
+
+function render(){ drawMap(); if(state.view==="list") drawList(); }
+function syncChips(){
+  document.querySelectorAll("[data-type]").forEach(b=>b.setAttribute("aria-pressed", state.types.has(b.dataset.type)));
+  $("#chipBudgetV").textContent = state.maxPrice; $("#chipCommuteV").textContent = state.maxCommute;
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html, after){ $("#sheetBody").innerHTML = `<button class="close" aria-label="Затвори" id="xBtn">×</button>`+html; $("#sheet").classList.add("on"); $("#bd").classList.add("on"); $("#sheet").scrollTop=0; $("#xBtn").onclick=closeSheet; after&&after(); }
+function closeSheet(){ $("#sheet").classList.remove("on"); $("#bd").classList.remove("on"); state.sel=null; drawMap(); }
+$("#bd").onclick = closeSheet;
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeSheet(); });
+
+function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("on"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("on"),2600); }
+
+function detail(id){
+  const l = listings.find(x=>x.id===id); state.sel=id; drawMap();
+  const c = compat(l), per = pp(l), n = l.people;
+  const share = (l.rent/n), ushare = (l.util/n);
+  const fmt = v => "€"+(Math.round(v*10)/10).toString().replace(".",",");
+  const hostHtml = l.host ? `
+    <div class="section-t">С кого ще живееш</div>
+    <div class="who"><div class="av">${l.host.ini}</div><div><strong>${esc(l.host.name)}</strong><p>${esc(l.host.info)}</p></div></div>
+    <div class="match"><div class="bar"><i style="width:${c.score}%"></i></div><b>${c.score}%</b></div>
+    <ul class="why">${c.why.map(([k,t])=>`<li class="${k}">${t}</li>`).join("")}</ul>` :
+    `<div class="section-t">Предлага</div><p class="sub">${esc(l.agency)}. Можеш да кандидатстваш сам или с приятел, с когото сте се намерили тук.</p>`;
+  openSheet(`
+    <h2>${esc(l.title)}</h2>
+    <p class="sub">${l.dist}, Варна · ${l.type==="room"?"стая при студент":"цяло жилище"}</p>
+    <div class="price"><b>€${per}</b><span>на месец за теб, със сметките</span></div>
+    <table class="calc">
+      <tr><td>Наем €${l.rent} ÷ ${n} ${n===1?"човек":"души"}</td><td>${fmt(share)}</td></tr>
+      <tr><td>Ток, вода, интернет ~€${l.util} ÷ ${n}</td><td>${fmt(ushare)}</td></tr>
+      <tr><td>Твоят дял</td><td>${fmt(share+ushare)}</td></tr>
+    </table>
+    <div class="facts">
+      <div class="fact"><small>До ${UNIS[state.uni].short}</small><strong>${commute(l)} мин с градски</strong></div>
+      <div class="fact"><small>Търси</small><strong>${prefTxt(l.pref)}</strong></div>
+      <div class="fact"><small>Свободна от</small><strong>${l.from}</strong></div>
+      <div class="fact"><small>Минимален срок</small><strong>${l.months} месеца</strong></div>
+    </div>
+    ${hostHtml}
+    <div class="badges">
+      ${l.verified?'<span class="badge">✓ Потвърден студентски имейл</span>':''}
+      ${l.landlordOk?'<span class="badge">✓ Хазяинът е съгласен</span>':'<span class="badge no">Няма потвърждение от хазяина</span>'}
+      <span class="badge">✓ Шаблон за споразумение</span>
+    </div>
+    <button class="cta" id="msgBtn">${l.host?"Пиши на "+esc(l.host.name.split(" ")[0]):"Кандидатствай"}</button>
+    <p class="note">Телефонът ти остава скрит, докато и двамата не приемете.</p>
+  `, ()=>{ $("#msgBtn").onclick=()=>chat(l); });
+}
+
+function chat(l){
+  const to = l.host ? l.host.name : "наемодателя";
+  const draft = `Здрасти! Видях обявата в ${l.dist}. Аз съм от ${UNIS[state.uni].short}, ${state.me.smoke?"пуша":"не пуша"} и ${state.me.sleep==="late"?"лягам късно":"лягам рано"}. Мога ли да дойда да видя жилището тази седмица?`;
+  openSheet(`<h2>Съобщение до ${esc(to)}</h2><p class="sub">${esc(l.title)}, €${pp(l)}/мес</p>
+    <div class="msgs" id="msgs"><div class="bub sys">Писмата са тук, докато не решите да си дадете телефоните</div></div>
+    <textarea id="txt" aria-label="Съобщение">${esc(draft)}</textarea>
+    <button class="cta alt" id="sendBtn" style="margin-top:10px">Изпрати</button>`,
+  ()=>{ state.sel=l.id; drawMap();
+    $("#sendBtn").onclick=()=>{ const t=$("#txt").value.trim(); if(!t){ $("#txt").focus(); return; }
+      $("#msgs").insertAdjacentHTML("beforeend", `<div class="bub me">${esc(t)}</div><div class="bub sys">Изпратено. ${esc(to.split(" ")[0])} обикновено отговаря до няколко часа.</div>`);
+      $("#txt").value=""; $("#sendBtn").textContent="Изпратено"; $("#sendBtn").disabled=true; }; });
+}
+
+function opts(name, pairs, cur){ return `<div class="opts" data-name="${name}">`+pairs.map(([v,t])=>`<button type="button" data-v="${v}" aria-pressed="${String(v)===String(cur)}">${t}</button>`).join("")+`</div>`; }
+function bindOpts(root, cb){ root.querySelectorAll(".opts").forEach(g=>g.addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; g.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", x===b)); cb(g.dataset.name, b.dataset.v); })); }
+
+function profile(){
+  const m = state.me;
+  openSheet(`<h2>Моят профил</h2><p class="sub">От отговорите зависи процентът съвпадение с всяка обява.</p>
+    <div class="field"><span class="lbl">Аз съм</span>${opts("gender",[["m","Мъж"],["f","Жена"]],m.gender)}</div>
+    <div class="field"><span class="lbl">Пушиш ли вкъщи?</span>${opts("smoke",[[0,"Не"],[1,"Да"]],m.smoke)}</div>
+    <div class="field"><span class="lbl">Режим</span>${opts("sleep",[["early","Лягам рано"],["late","Лягам късно"]],m.sleep)}</div>
+    <div class="field"><span class="lbl">Чистота</span>${opts("clean",[[1,"Спокойно"],[2,"Нормално"],[3,"Много подредено"]],m.clean)}</div>
+    <div class="field"><span class="lbl">Гости</span>${opts("guests",[[1,"Рядко"],[2,"Понякога"],[3,"Често"]],m.guests)}</div>
+    <button class="cta" id="saveP">Запази профила</button>`,
+  ()=>{ bindOpts($("#sheet"), (k,v)=>{ m[k] = (k==="gender"||k==="sleep")? v : Number(v); render(); });
+    $("#saveP").onclick=()=>{ closeSheet(); toast("Профилът е запазен"); }; });
+}
+
+function filters(){
+  openSheet(`<h2>Филтри</h2><p class="sub">Цената е на човек и включва сметките.</p>
+    <div class="field"><label for="fb">Бюджет на човек <span class="rv" id="fbV">€${state.maxPrice}</span></label><input type="range" id="fb" min="200" max="600" step="10" value="${state.maxPrice}"></div>
+    <div class="field"><label for="fc">Път до ${UNIS[state.uni].short} <span class="rv" id="fcV">${state.maxCommute} мин</span></label><input type="range" id="fc" min="10" max="60" step="5" value="${state.maxCommute}"></div>
+    <p class="sub" id="fN"></p>
+    <button class="cta" id="applyF">Покажи обявите</button>`,
+  ()=>{ const upd=()=>{ state.maxPrice=+$("#fb").value; state.maxCommute=+$("#fc").value; $("#fbV").textContent="€"+state.maxPrice; $("#fcV").textContent=state.maxCommute+" мин"; syncChips(); render(); const n=visible().length; $("#fN").textContent = n+" "+(n===1?"обява отговаря":"обяви отговарят"); };
+    $("#fb").oninput=upd; $("#fc").oninput=upd; upd(); $("#applyF").onclick=closeSheet; });
+}
+
+function create(){
+  const f = {rent:600, people:2, util:65, pref:"m", months:24};
+  openSheet(`<h2>Търся съквартирант</h2><p class="sub">Въведи общите суми. Делът на всеки се смята сам.</p>
+    <div class="two">
+      <div class="field"><label for="cr">Наем общо, €</label><input type="number" id="cr" inputmode="numeric" value="${f.rent}" min="0"></div>
+      <div class="field"><label for="cu">Сметки средно, €</label><input type="number" id="cu" inputmode="numeric" value="${f.util}" min="0"></div>
+    </div>
+    <div class="field"><span class="lbl">Общо живеещи</span>${opts("people",[[2,"2"],[3,"3"],[4,"4"]],f.people)}</div>
+    <div class="field"><span class="lbl">Търся</span>${opts("pref",[["m","Мъж"],["f","Жена"],["a","Без значение"]],f.pref)}</div>
+    <div class="field"><span class="lbl">За колко време</span>${opts("months",[[6,"6 мес."],[12,"1 година"],[24,"2 години"]],f.months)}</div>
+    <div class="preview"><h4>Така ще изглежда в обявата</h4><div class="big" id="pv"></div><div id="pv2" class="sub" style="margin:4px 0 0"></div></div>
+    <button class="cta alt" id="pubBtn">Публикувай обявата</button>
+    <p class="note">Демо: обявата се появява на картата в Младост.</p>`,
+  ()=>{ const upd=()=>{ f.rent=Math.max(0,+$("#cr").value||0); f.util=Math.max(0,+$("#cu").value||0);
+      const per=Math.round(f.rent/f.people+f.util/f.people);
+      $("#pv").textContent = "€"+per+" на човек";
+      $("#pv2").textContent = `€${f.rent} ÷ ${f.people} + сметки ~€${f.util} ÷ ${f.people} · ${prefTxt(f.pref).toLowerCase()} · ${f.months} мес.`; };
+    $("#cr").oninput=upd; $("#cu").oninput=upd;
+    bindOpts($("#sheet"), (k,v)=>{ f[k] = k==="pref"? v : Number(v); upd(); }); upd();
+    $("#pubBtn").onclick=()=>{
+      const id = Math.max(...listings.map(x=>x.id))+1;
+      listings.push({id,type:"room",title:"Твоята обява: стая в "+(f.people===2?"двустаен":f.people===3?"тристаен":"четиристаен"),dist:"Младост",x:150,y:350,rent:f.rent,people:f.people,util:f.util,pref:f.pref,months:f.months,from:"1 октомври",
+        host:{name:"Ти",ini:"Аз",info:"Твоят профил",smoke:state.me.smoke,sleep:state.me.sleep,clean:state.me.clean,guests:state.me.guests},landlordOk:true,verified:true,isNew:true});
+      state.maxPrice=Math.max(state.maxPrice, Math.round(f.rent/f.people+f.util/f.people)); state.maxCommute=Math.max(state.maxCommute,30); state.types.clear();
+      syncChips(); closeSheet(); setView("map"); toast("Обявата е публикувана"); render();
+      setTimeout(()=>{ const n=listings.find(x=>x.id===id); if(n) n.isNew=false; },4000);
+    }; });
+}
+
+/* ---------- wiring ---------- */
+$("#map").addEventListener("click", e=>{ const p=e.target.closest(".pin"); if(p) detail(+p.dataset.id); });
+$("#map").addEventListener("keydown", e=>{ const p=e.target.closest(".pin"); if(p && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); detail(+p.dataset.id); } });
+$("#list").addEventListener("click", e=>{ const r=e.target.closest(".row"); if(r) detail(+r.dataset.id); });
+document.querySelectorAll("[data-type]").forEach(b=>b.onclick=()=>{ const t=b.dataset.type; state.types.has(t)?state.types.delete(t):state.types.add(t); syncChips(); render(); });
+$("#chipBudget").onclick=filters; $("#chipCommute").onclick=filters; $("#chipMore").onclick=filters;
+$("#meBtn").onclick=profile; $("#newBtn").onclick=create;
+$("#uniSel").onchange=e=>{ state.uni=e.target.value; render(); };
+function setView(v){ state.view=v; $("#vMap").setAttribute("aria-pressed",v==="map"); $("#vList").setAttribute("aria-pressed",v==="list"); $("#mapView").hidden = v!=="map"; $("#list").hidden = v!=="list"; if(v==="list") drawList(); }
+$("#vMap").onclick=()=>setView("map"); $("#vList").onclick=()=>setView("list");
+
+syncChips(); render();
+})();
+</script>
+</body>
+</html>
