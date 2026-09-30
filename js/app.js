@@ -64,28 +64,28 @@ function renderHeader(path, minimal) {
       <div style="margin-left:auto"><a class="btn ghost sm" href="#/host">Изход</a></div></div>`;
     return;
   }
-  const budgetOpts = [[0, "Всеки бюджет"], [250, "До €250"], [300, "До €300"], [350, "До €350"], [400, "До €400"], [500, "До €500"]];
+  const uni = UNIVERSITIES.find(u => u.id === currentUni());
   hdr.innerHTML = `<div class="wrap-wide hdr-in">
     <a class="logo" href="#/" aria-label="делим, начало">${logoMark()}<small>Варна</small></a>
-    <form class="searchbar" id="sbar" role="search">
-      <label class="sb-seg q"><span class="t">Къде</span><input id="sbQ" name="q" placeholder="Квартал, университет, дума" value="${esc(f.q)}" autocomplete="off"></label>
-      <label class="sb-seg"><span class="t">Университет</span><select id="sbU" aria-label="Университет">${UNIVERSITIES.map(u => `<option value="${u.id}" ${u.id === currentUni() ? "selected" : ""}>${u.short} — ${esc(u.name.split(" ")[0])}</option>`).join("")}</select></label>
-      <label class="sb-seg"><span class="t">Бюджет на човек</span><select id="sbB" aria-label="Бюджет">${budgetOpts.map(([v, t]) => `<option value="${v}" ${v === f.maxPrice ? "selected" : ""}>${t}</option>`).join("")}${f.maxPrice && !budgetOpts.some(b => b[0] === f.maxPrice) ? `<option value="${f.maxPrice}" selected>До €${f.maxPrice}</option>` : ""}</select></label>
-      <button class="sb-go" aria-label="Търси">${icon("search", 18)}</button>
+    <form class="find" id="sbar" role="search">
+      <label class="sr" for="sbQ">Търси</label>${icon("search", 18)}
+      <input id="sbQ" name="q" placeholder="Квартал, университет или дума" value="${esc(f.q)}" autocomplete="off" enterkeyhint="search">
     </form>
-    <button class="m-search" id="mSearch"><span>${icon("search", 20)}</span><span><b>${f.q ? esc(f.q) : "Къде ще живееш?"}</b><small>${UNIVERSITIES.find(u => u.id === currentUni()).short} · ${f.maxPrice ? "до €" + f.maxPrice : "всеки бюджет"} · Варна</small></span><span class="fb">${icon("sliders-horizontal", 16)}</span></button>
+    <label class="uni-chip" title="Времето за път се смята до този университет">${icon("graduation-cap", 18)}<span>Уча в</span>
+      <select id="sbU" aria-label="Университет">${UNIVERSITIES.map(u => `<option value="${u.id}" ${u.id === uni.id ? "selected" : ""}>${u.short}</option>`).join("")}</select>${icon("chevron-down", 14)}</label>
+    <button class="m-search" id="mSearch">${icon("search", 18)}<span><b>${f.q ? esc(f.q) : "Търси във Варна"}</b><small>Уча в ${uni.short} · ${f.maxPrice ? "до €" + f.maxPrice : "всеки бюджет"}</small></span><span class="fb" aria-label="Филтри">${icon("sliders-horizontal", 16)}</span></button>
     <div class="hdr-right">
-      <a class="host-link" href="#/people">Съквартиранти</a>
-      <a class="host-link" href="#/host/new">Публикувай обява</a>
-      <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-label="Меню">${icon("menu", 16)}${avatar(me, 32)}${unread ? `<span class="dot">${unread}</span>` : ""}</button>
+      <a class="nav-link" href="#/people">Съквартиранти</a>
+      <a class="btn yellow sm" href="#/host/new">${icon("plus", 16)} Обява</a>
+      <button class="menu-btn" id="menuBtn" aria-haspopup="true" aria-expanded="false" aria-label="Меню">${avatar(me, 34)}${icon("chevron-down", 14)}${unread ? `<span class="dot">${unread}</span>` : ""}</button>
     </div></div>`;
   const submit = e => {
     e?.preventDefault();
-    S.filters.q = $("#sbQ").value.trim(); S.filters.maxPrice = +$("#sbB").value; S.uniId = $("#sbU").value; saveUI();
+    S.filters.q = $("#sbQ").value.trim(); S.uniId = $("#sbU").value; saveUI();
     if (location.hash.replace(/^#/, "") !== "/" && location.hash !== "") go("/"); else route();
   };
   $("#sbar").onsubmit = submit;
-  $("#sbU").onchange = submit; $("#sbB").onchange = submit;
+  $("#sbU").onchange = submit;
   $("#menuBtn").onclick = e => { e.stopPropagation(); toggleMenu(); };
   $("#mSearch").onclick = e => {
     if (e.target.closest(".fb")) { filtersModal(() => { if (current?.path !== "/") go("/"); else route(); }); return; }
@@ -103,7 +103,7 @@ function toggleMenu() {
   dd.className = "dropdown"; dd.setAttribute("role", "menu");
   dd.innerHTML = `
     <a class="strong" href="#/inbox" role="menuitem">Съобщения ${unread ? `<span class="badge-n">${unread}</span>` : ""}</a>
-    <a class="strong" href="#/favorites" role="menuitem">Любими</a>
+    <a class="strong" href="#/favorites" role="menuitem">Запазени</a>
     <a class="strong" href="#/u/${me.id}" role="menuitem">Профил</a>
     <hr>
     <a href="#/host/new" role="menuitem">Публикувай обява</a>
@@ -154,7 +154,7 @@ function mobileSearch() {
 
 function renderTabbar(path) {
   const unread = store.totalUnread();
-  const tabs = [["/", "Разгледай", "search"], ["/favorites", "Любими", "heart"], ["/host/new", "Обява", "plus"], ["/inbox", "Съобщения", "message-circle"], ["/u/" + store.me().id, "Профил", "user"]];
+  const tabs = [["/", "Разгледай", "search"], ["/favorites", "Запазени", "bookmark"], ["/host/new", "Обява", "plus"], ["/inbox", "Съобщения", "message-circle"], ["/u/" + store.me().id, "Профил", "user"]];
   $("#tabbar").innerHTML = tabs.map(([p, t, ic]) => {
     const on = p === "/" ? path === "/" : path.startsWith(p) || (ic === "user" && path.startsWith("/me"));
     return `<a href="#${p}" class="${on ? "on" : ""}" ${on ? 'aria-current="page"' : ""}>${icon(ic, 22)}${t}${ic === "message-circle" && unread ? `<span class="dot">${unread}</span>` : ""}</a>`;

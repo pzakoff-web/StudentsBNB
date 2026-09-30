@@ -2,7 +2,7 @@ import * as store from "../store.js";
 import { icon } from "../icons.js";
 import { photoSrc } from "../photos.js";
 import { $, $$, esc, nl2br, avatar, modal, toast, stars, go, download } from "../ui.js";
-import { AMENITIES, REVIEW_CATS, GENDER_PREF, TYPE_LABEL, priceSplit, listingCompat, ratingSummary, isStudentFavourite,
+import { AMENITIES, REVIEW_CATS, GENDER_PREF, TYPE_LABEL, priceSplit, listingCompat, ratingSummary, isTopRated,
   fmtRating, fmtDate, fmtMonths, fmtMonthYear, eur, plural } from "../logic.js";
 import { UNIVERSITIES, uniById } from "../data/places.js";
 import { commuteMin, seaDistanceM, PRIVACY_RADIUS_M } from "../geo.js";
@@ -37,53 +37,52 @@ export function listingPage(main, id) {
     const compat = listingCompat(l, me, store.user);
     const reviews = store.reviewsFor(l.id).sort((a, b) => b.date.localeCompare(a.date));
     const rs = ratingSummary(reviews);
-    const loved = isStudentFavourite(rs);
+    const loved = isTopRated(rs);
     const fav = store.isFav(l.id);
     const seeAddr = store.canSeeAddress(l);
     const residents = l.residents.map(store.user).filter(Boolean);
     const first = host.name.split(" ")[0];
-    const ph = l.photos.slice(0, 5);
     const nearSea = seaDistanceM(l.approx) <= 900;
     const genderBlocked = !own && l.genderPref !== "any" && me.gender && l.genderPref !== me.gender;
-
-    const amen = l.amenities.map(k => AMENITIES[k] && `<div>${icon(AMENITIES[k][1], 24)}${AMENITIES[k][0]}</div>`).filter(Boolean);
+    const amen = l.amenities.map(k => AMENITIES[k] && `<li>${icon(AMENITIES[k][1], 20)}${AMENITIES[k][0]}</li>`).filter(Boolean);
+    const kind = l.type === "room" ? `Стая в ${roomsWord(l.rooms)}` : roomsWord(l.rooms)[0].toUpperCase() + roomsWord(l.rooms).slice(1);
 
     main.innerHTML = `<div class="lp"><div class="wrap">
-      <div class="gal-wrap">
-        <button class="icon-btn back-btn" id="back" aria-label="Назад">${icon("chevron-left", 18)}</button>
-        ${ph.length ? `<div class="gallery n${Math.min(ph.length, 5)}">${ph.map((p, i) => `<button data-ph="${i}" aria-label="Снимка ${i + 1}"><img src="${photoSrc(p)}" alt=""></button>`).join("")}
-          ${l.photos.length > 1 ? `<button class="show-all" id="allPh">${icon("layers", 16)} Всички снимки (${l.photos.length})</button>` : ""}</div>` :
-          `<div class="gallery n1"><button disabled><div style="display:grid;place-items:center;height:100%;color:var(--muted)">${icon("image-plus", 40)}<br>Още няма снимки</div></button></div>`}
-      </div>
       <div class="lp-top">
+        <nav class="crumbs" aria-label="Път"><button class="icon-btn back-btn" id="back" aria-label="Назад">${icon("arrow-left", 18)}</button>
+          <a href="#/">Варна</a>${icon("chevron-right", 14)}<span>${esc(l.district)}</span>${icon("chevron-right", 14)}<span>${l.type === "room" ? "Стаи" : "Цели жилища"}</span></nav>
         <h1 class="lp-title">${esc(l.title)}</h1>
-        <div class="lp-meta"><div class="l">${rs.count ? `${icon("star", 14, "star")}<b>${fmtRating(rs.overall)}</b> · <a href="#reviews" class="btn link">${plural(rs.count, "отзив", "отзива")}</a> ·` : `<span class="tag">Нова обява</span> ·`}
-          <span>${esc(l.district)}, Варна</span>${loved ? ` · <span>${icon("trophy", 14)} Любимо на студентите</span>` : ""}${l.status === "paused" ? ` · <span class="tag warn">Скрита</span>` : ""}</div>
-          <div class="r"><button id="share">${icon("share", 16)} Сподели</button><button id="save" aria-pressed="${fav}">${icon("heart", 16)} ${fav ? "Запазено" : "Запази"}</button></div></div>
+        <div class="lp-meta"><div class="l">
+          ${rs.count ? `<a href="#reviews" class="rating">${icon("star", 14, "star")} ${fmtRating(rs.overall)} <span class="muted">· ${plural(rs.count, "отзив", "отзива")}</span></a>` : `<span class="badge">Нова обява</span>`}
+          ${loved ? `<span class="badge">${icon("star", 12, "star")} Топ оценка</span>` : ""}
+          ${l.status === "paused" ? `<span class="badge warn">Скрита</span>` : ""}</div>
+          <div class="r"><button class="btn ghost sm" id="share">${icon("share", 16)} Сподели</button>
+            <button class="btn ghost sm" id="save" aria-pressed="${fav}">${icon("bookmark", 16)} ${fav ? "Запазено" : "Запази"}</button></div></div>
       </div>
+
+      ${gallery(l.photos)}
 
       <div class="lp-cols">
         <div class="lp-main">
-          <div class="lp-head" style="padding-bottom:24px;border-bottom:1px solid var(--line)">
-            <h2>${l.type === "room" ? `Стая в ${roomsWord(l.rooms)}` : `${roomsWord(l.rooms)[0].toUpperCase() + roomsWord(l.rooms).slice(1)}`} · ${l.type === "room" ? "домакин" : "предлага"} ${esc(first)}</h2>
-            <div class="facts">${[l.rooms > 1 && plural(l.rooms, "стая", "стаи"), `${l.area} м²`, `${l.floor} етаж`, `общо ${l.occupants} ${l.occupants === 1 ? "човек" : "души"}`, l.amenities.includes("furnished") && "обзаведено"].filter(Boolean).join(" · ")}</div>
-            ${loved ? `<div class="fav-box"><div class="laurel">${icon("trophy", 26)}<span>Любимо на<br>студентите</span></div><div class="t">Едно от най-високо оценените жилища в делим, според бившите съквартиранти</div>
-              <div class="n"><b>${fmtRating(rs.overall)}</b>${stars(Math.round(rs.overall), 10)}</div><div class="n"><b>${rs.count}</b><span style="font-size:12px">отзива</span></div></div>` : ""}
-          </div>
+          <section class="lp-sec lp-head">
+            <div class="kicker">${TYPE_LABEL[l.type]}</div>
+            <h2>${kind}</h2>
+            <ul class="specs">${[l.rooms > 1 && plural(l.rooms, "стая", "стаи"), `${l.area} м²`, `${l.floor} етаж`, `общо ${l.occupants} ${l.occupants === 1 ? "човек" : "души"}`, l.amenities.includes("furnished") && "обзаведено"].filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul>
+            <a class="hostline" href="#/u/${host.id}">${avatar(host, 44)}<div><span class="muted">Публикувано от</span><b>${esc(host.name)}</b><span class="muted">${userLine(host)} · в делим от ${yearsOn(host)}</span></div>${icon("chevron-right", 18)}</a>
+          </section>
 
-          <a class="hostline" href="#/u/${host.id}">${avatar(host, 48)}<div><b>${l.type === "room" ? "Домакин" : "Предлага"}: ${esc(host.name)}</b><span class="muted">${userLine(host)} · в делим от ${yearsOn(host)}</span></div></a>
+          <section class="lp-sec"><h2>Проверки</h2>
+            <ul class="checks">
+              ${host.emailVerified ? chk("ok", "badge-check", "Потвърден студентски имейл", `Имейлът е от домейна на ${uniById(host.university)?.short || "университета"}.`) : host.role === "student" ? chk("", "circle-help", "Имейлът още не е потвърден", "Домакинът не е потвърдил университетски имейл.") : ""}
+              ${l.type === "room" ? (l.landlordConsent ? chk("ok", "shield-check", "Хазяинът е съгласен", "Собственикът е потвърдил, че приема нов съквартирант.")
+                : chk("warn", "triangle-alert", "Няма потвърждение от хазяина", "Преотдаването без съгласие на собственика е риск за договора. Поискай писмено съгласие, преди да се нанесеш.")) : chk("ok", "key-round", "Договор директно със собственика", host.role === "agency" ? "Обявата е от агенция." : "Обявата е от хазяина.")}
+              ${chk("", "bus", `${commuteMin(l.approx, uni)} мин до ${uni.short}`, "Пеша или с градски транспорт, ориентировъчно.")}
+              ${nearSea ? chk("", "waves", "Близо до морето", `Около ${Math.round(seaDistanceM(l.approx) / 50) * 50} м до плажа.`) : ""}
+            </ul></section>
 
-          <div class="highlights">
-            ${host.emailVerified ? hl("badge-check", "Потвърден студентски имейл", `Имейлът е от домейна на ${uniById(host.university)?.short || "университета"}.`) : ""}
-            ${l.type === "room" ? (l.landlordConsent ? hl("shield-check", "Хазяинът е съгласен", "Собственикът е потвърдил, че приема нов съквартирант. Така договорът ти е защитен.")
-              : hl("triangle-alert", "Няма потвърждение от хазяина", "Преотдаването без съгласие на собственика е риск за договора. Поискай писмено съгласие преди да се нанесеш.", "warn")) : ""}
-            ${hl("bus", `${commuteMin(l.approx, uni)} мин до ${uni.short}`, "Пеша или с градски транспорт, ориентировъчно. Виж времената до всички университети по-долу.")}
-            ${nearSea ? hl("waves", "Близо до морето", `Около ${Math.round(seaDistanceM(l.approx) / 50) * 50} м до плажа.`) : ""}
-          </div>
+          <section class="lp-sec"><h2>За жилището</h2><div class="desc">${nl2br(l.description)}</div></section>
 
-          <section class="lp-sec" style="padding-top:28px"><h2>За мястото</h2><div class="desc">${nl2br(l.description)}</div></section>
-
-          ${l.type === "room" ? `<section class="lp-sec"><h2>С кого ще живееш</h2>
+          ${l.type === "room" ? `<section class="lp-sec"><h2>Съквартиранти</h2>
             ${own ? `<p class="muted">Това е твоята обява. Другите виждат тук теб и съвпадението си с теб.</p>` : ""}
             <div class="people">${residents.map(u => {
               const c = compat?.per.find(p => p.user.id === u.id);
@@ -93,60 +92,59 @@ export function listingPage(main, id) {
                 <ul class="why">${c.why.map(([k, t]) => `<li class="${k}">${icon(k === "y" ? "check" : "triangle-alert", 16)}${t}</li>`).join("")}</ul>` : ""}</div></div>`;
             }).join("")}</div>
             ${compat ? `<p class="muted" style="font-size:13px;margin-top:12px">Съвпадението се смята от профила ти: пушене, режим на сън, чистота и гости. <a href="#/me/edit">Промени профила</a></p>` : ""}
-          </section>` : `<section class="lp-sec"><h2>Търсиш с кого да го наемеш?</h2>
+          </section>` : `<section class="lp-sec"><h2>Съквартиранти</h2>
             <p>Жилището е за ${plural(l.occupants, "човек", "души")}. Можеш да кандидатстваш сам или с хора, с които сте се намерили тук.</p>
-            <a class="btn ghost" href="#/people">${icon("users", 18)} Виж кой търси съквартирант</a></section>`}
+            <a class="btn ghost" href="#/people">${icon("users", 18)} Кой търси съквартирант</a></section>`}
 
-          <section class="lp-sec"><h2>Какво предлага мястото</h2><div class="amen">${amen.slice(0, 10).join("")}</div>
-            ${amen.length > 10 ? `<button class="btn ghost" id="allAm" style="margin-top:24px">Всички ${amen.length} удобства</button>` : ""}</section>
+          <section class="lp-sec"><h2>Удобства <span class="count">${amen.length}</span></h2><ul class="amen">${amen.join("")}</ul></section>
 
-          <section class="lp-sec" id="where"><h2>Къде ще живееш</h2>
-            <p style="margin:0 0 8px">${esc(l.district)}, Варна${seeAddr ? ` · <b>${esc(l.address)}</b>` : ""}</p>
+          <section class="lp-sec" id="where"><h2>Локация</h2>
+            <p style="margin:0 0 10px">${esc(l.district)}, Варна${seeAddr ? ` · <b>${esc(l.address)}</b>` : ""}</p>
             <div class="lp-map" id="lpMap"></div>
             <div class="map-note">${icon(seeAddr ? "map-pin" : "lock", 18)}<span>${seeAddr ? (own ? "Виждаш точния адрес, защото обявата е твоя. Другите виждат само кръга." : "Виждаш точния адрес, защото с домакина си споделихте контактите.")
               : `Показваме зона от ${PRIVACY_RADIUS_M} м, а не точния адрес. Адресът се вижда, след като и двамата с ${esc(first)} се съгласите да споделите контакти в чата.`}</span></div>
-            <div class="commutes">${UNIVERSITIES.map(u => `<div class="commute ${u.id === uni.id ? "on" : ""}"><b>${commuteMin(l.approx, u)} мин</b>до ${u.short}<br><span class="muted" style="font-size:12px">${esc(u.name.split(" ").slice(0, 2).join(" "))}</span></div>`).join("")}</div>
+            <table class="commute-table"><caption class="sr">Време до университетите</caption>
+              ${UNIVERSITIES.map(u => `<tr class="${u.id === uni.id ? "on" : ""}"><th scope="row">${u.short}</th><td>${esc(u.name)}</td><td>${commuteMin(l.approx, u)} мин</td></tr>`).join("")}</table>
           </section>
 
-          <section class="lp-sec" id="reviews">
-            ${rs.count ? `<div class="rv-head">${icon("star", 22, "star")} ${fmtRating(rs.overall)} · ${plural(rs.count, "отзив", "отзива")}</div>
-              <div class="rv-cats">${Object.entries(REVIEW_CATS).map(([k, t]) => `<div><span>${t}</span><b>${rs.cats[k] ? rs.cats[k].toFixed(1).replace(".", ",") : "—"}</b></div>`).join("")}</div>
+          <section class="lp-sec" id="reviews"><h2>Отзиви от съквартиранти ${rs.count ? `<span class="count">${rs.count}</span>` : ""}</h2>
+            ${rs.count ? `<div class="rv-sum"><div class="rv-score"><b>${fmtRating(rs.overall)}</b>${stars(Math.round(rs.overall), 14)}<span class="muted">от ${plural(rs.count, "отзив", "отзива")}</span></div>
+              <dl class="rv-bars">${Object.entries(REVIEW_CATS).map(([k, t]) => `<div><dt>${t}</dt><dd><span class="bar"><i style="width:${(rs.cats[k] || 0) / 5 * 100}%"></i></span><b>${rs.cats[k] ? rs.cats[k].toFixed(1).replace(".", ",") : "—"}</b></dd></div>`).join("")}</dl></div>
               <div class="reviews">${reviews.slice(0, 6).map(reviewHTML).join("")}</div>
-              <div style="display:flex;gap:12px;margin-top:32px;flex-wrap:wrap">${reviews.length > 6 ? `<button class="btn ghost" id="allRv">Всички ${rs.count} отзива</button>` : ""}
+              <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap">${reviews.length > 6 ? `<button class="btn ghost" id="allRv">Още ${rs.count - 6} отзива</button>` : ""}
               ${own ? "" : `<button class="btn ghost" id="addRv">${icon("pencil", 16)} Живял/а си тук? Напиши отзив</button>`}</div>`
-            : `<h2>Още няма отзиви</h2><p class="muted">Отзивите пишат бивши съквартиранти.</p>${own ? "" : `<button class="btn ghost" id="addRv">${icon("pencil", 16)} Живял/а си тук? Напиши отзив</button>`}`}
+            : `<p class="muted">Още няма отзиви. Пишат ги бивши съквартиранти.</p>${own ? "" : `<button class="btn ghost" id="addRv">${icon("pencil", 16)} Живял/а си тук? Напиши отзив</button>`}`}
           </section>
 
-          <section class="lp-sec" style="border-bottom:0"><h2>Добре е да знаеш</h2>
-            <div class="amen">
-              <div>${icon("calendar", 22)}<span>Свободно от <b>${fmtDate(l.availableFrom)}</b></span></div>
-              <div>${icon("clock", 22)}<span>Минимален срок <b>${fmtMonths(l.minMonths)}</b></span></div>
-              <div>${icon("wallet", 22)}<span>Депозит <b>€${l.deposit}</b> на човек</span></div>
-              <div>${icon("users", 22)}<span>${GENDER_PREF[l.genderPref]}</span></div>
-              <div>${icon(host.role === "student" ? "cigarette-off" : "key-round", 22)}<span>${l.type === "room" ? (residents.some(u => u.smoke) ? "Пуши се вкъщи" : "Не се пуши вкъщи") : "Договор директно с " + (host.role === "agency" ? "агенцията" : "хазяина")}</span></div>
-              <div>${icon("file-text", 22)}<button class="btn link" id="agree">Шаблон за споразумение между съквартиранти</button></div>
-            </div></section>
+          <section class="lp-sec"><h2>Условия</h2>
+            <dl class="terms">
+              <div><dt>${icon("calendar", 18)} Свободно от</dt><dd>${fmtDate(l.availableFrom)}</dd></div>
+              <div><dt>${icon("clock", 18)} Минимален срок</dt><dd>${fmtMonths(l.minMonths)}</dd></div>
+              <div><dt>${icon("wallet", 18)} Депозит</dt><dd>€${l.deposit} на човек</dd></div>
+              <div><dt>${icon("users", 18)} Търси</dt><dd>${GENDER_PREF[l.genderPref].replace("Търси ", "")}</dd></div>
+              <div><dt>${icon(residents.some(u => u.smoke) ? "cigarette" : "cigarette-off", 18)} Пушене</dt><dd>${l.type === "room" ? (residents.some(u => u.smoke) ? "пуши се вкъщи" : "не се пуши вкъщи") : "по договор"}</dd></div>
+            </dl>
+            <button class="btn ghost wrap-text" id="agree" style="margin-top:18px">${icon("file-text", 18)} Шаблон за споразумение между съквартиранти</button></section>
         </div>
 
-        <aside class="lp-side"><div class="sticky-box">
+        <aside class="lp-side"><div class="bill">
           ${own ? ownBox(l) : `
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><span><span class="big">€${split.perPerson}</span> на човек / месец</span>
-            ${rs.count ? `<span class="rating">${icon("star", 14, "star")} ${fmtRating(rs.overall)} · <a href="#reviews" class="muted">${rs.count}</a></span>` : ""}</div>
-          <div class="box-facts"><div><b>Нанасяне</b><span>${fmtDate(l.availableFrom)}</span></div><div><b>Срок</b><span>мин. ${fmtMonths(l.minMonths)}</span></div>
-            <div><b>Търси</b><span>${GENDER_PREF[l.genderPref].replace("Търси ", "")}</span></div><div><b>Депозит</b><span>€${l.deposit}</span></div></div>
-          ${genderBlocked ? `<p class="legal" style="margin-top:0">Домакинът търси ${l.genderPref === "m" ? "мъж" : "жена"}, а в профила ти е посочено друго.</p>` : ""}
-          <button class="btn primary full" id="msg" ${genderBlocked ? "disabled" : ""}>${l.type === "room" ? "Пиши на " + esc(first) : "Кандидатствай"}</button>
-          <p class="note">Все още нищо не се плаща. Телефонът ти остава скрит, докато и двамата не приемете.</p>
+          <div class="bill-head">${icon("receipt", 18)} Твоят дял <span>месечно</span></div>
+          <div class="bill-total"><mark>€${split.perPerson}</mark><span>на човек,<br>със сметките</span></div>
           <table class="split">
-            <tr><td class="u">Наем ${eur(l.rent)} ÷ ${l.occupants}</td><td>${eur(split.rent)}</td></tr>
-            <tr><td class="u">Сметки ~${eur(l.util)} ÷ ${l.occupants}</td><td>${eur(split.util)}</td></tr>
-            <tr class="total"><td>Твоят дял</td><td>€${split.perPerson}</td></tr>
+            <tr><td>Наем ${eur(l.rent)} ÷ ${l.occupants}</td><td>${eur(split.rent)}</td></tr>
+            <tr><td>Сметки ~${eur(l.util)} ÷ ${l.occupants}</td><td>${eur(split.util)}</td></tr>
+            <tr class="total"><td>Общо, закръглено</td><td>€${split.perPerson}</td></tr>
           </table>
-          ${compat ? `<div style="border-top:1px solid var(--line);padding-top:16px"><b style="font-size:14px">Съвпадение със съквартирантите</b>
-            <div class="meter"><div class="bar ${compat.score >= 80 ? "hi" : ""}"><i style="width:${compat.score}%"></i></div><b>${compat.score}%</b></div></div>` : ""}`}
+          <dl class="bill-facts"><div><dt>Нанасяне</dt><dd>${fmtDate(l.availableFrom)}</dd></div><div><dt>Мин. срок</dt><dd>${fmtMonths(l.minMonths)}</dd></div>
+            <div><dt>Търси</dt><dd>${GENDER_PREF[l.genderPref].replace("Търси ", "")}</dd></div><div><dt>Депозит</dt><dd>€${l.deposit}</dd></div></dl>
+          ${compat ? `<div class="bill-match"><span>Съвпадение със съквартирантите</span><div class="meter"><div class="bar ${compat.score >= 80 ? "hi" : ""}"><i style="width:${compat.score}%"></i></div><b>${compat.score}%</b></div></div>` : ""}
+          ${genderBlocked ? `<p class="legal">Домакинът търси ${l.genderPref === "m" ? "мъж" : "жена"}, а в профила ти е посочено друго.</p>` : ""}
+          <button class="btn dark full" id="msg" ${genderBlocked ? "disabled" : ""}>${icon("message-circle", 18)} ${l.type === "room" ? "Пиши на " + esc(first) : "Кандидатствай"}</button>
+          <p class="note">Нищо не се плаща тук. Телефонът ти остава скрит, докато и двамата не приемете.</p>`}
         </div></aside>
       </div></div>
-      ${own ? "" : `<div class="m-book"><div><b>€${split.perPerson}</b> на човек<small>със сметките · от ${fmtDate(l.availableFrom)}</small></div><button class="btn primary" id="msgM" ${genderBlocked ? "disabled" : ""}>${l.type === "room" ? "Пиши" : "Кандидатствай"}</button></div>`}
+      ${own ? "" : `<div class="m-book"><div><mark>€${split.perPerson}</mark> на човек<small>със сметките · от ${fmtDate(l.availableFrom)}</small></div><button class="btn dark" id="msgM" ${genderBlocked ? "disabled" : ""}>${l.type === "room" ? "Пиши" : "Кандидатствай"}</button></div>`}
     </div>`;
     document.body.classList.toggle("has-book", !own);
 
@@ -154,20 +152,18 @@ export function listingPage(main, id) {
     map = baseMap($("#lpMap"), { scrollWheelZoom: false, maxZoom: seeAddr ? 19 : 16 });
     map.setView([l.approx.lat, l.approx.lng], 15);
     uniMarkers(map, uni.id);
-    L.circle([l.approx.lat, l.approx.lng], { radius: PRIVACY_RADIUS_M, color: "#E5484D", weight: 2, fillColor: "#E5484D", fillOpacity: .18 }).addTo(map);
+    L.circle([l.approx.lat, l.approx.lng], { radius: PRIVACY_RADIUS_M, color: "#1F5FA8", weight: 2, fillColor: "#1F5FA8", fillOpacity: .16 }).addTo(map);
     if (seeAddr) L.marker([l.exact.lat, l.exact.lng], { icon: L.divIcon({ className: "pin-wrap", iconSize: [0, 0], html: `<div class="pin-exact"></div>` }) }).addTo(map);
 
     // events
     $("#back").onclick = () => history.length > 1 ? history.back() : go("/");
-    $$("[data-ph]").forEach(b => b.onclick = () => photos(l, +b.dataset.ph));
-    $("#allPh")?.addEventListener("click", () => photos(l, 0));
+    bindGallery(main, l);
     $("#share").onclick = async () => {
       const url = location.href;
       try { if (navigator.share) await navigator.share({ title: l.title, url }); else { await navigator.clipboard.writeText(url); toast("Линкът е копиран"); } }
       catch { /* cancelled */ }
     };
-    $("#save").onclick = () => { const on = store.toggleFavorite(l.id); toast(on ? "Запазено в Любими" : "Премахнато от Любими"); render(); };
-    $("#allAm")?.addEventListener("click", () => modal(`<h2>Какво предлага мястото</h2><div class="amen" style="grid-template-columns:1fr">${amen.join("")}</div>`, { label: "Удобства" }));
+    $("#save").onclick = () => { const on = store.toggleFavorite(l.id); toast(on ? "Запазено" : "Махнато от запазени"); render(); };
     $("#allRv")?.addEventListener("click", () => modal(`<h2>${plural(rs.count, "отзив", "отзива")}</h2><div class="reviews" style="grid-template-columns:1fr">${reviews.map(reviewHTML).join("")}</div>`, { cls: "wide", label: "Отзиви" }));
     $("#addRv")?.addEventListener("click", () => reviewDialog(l, render));
     $("#agree").onclick = () => agreement(l, host, me);
@@ -185,14 +181,47 @@ export function listingPage(main, id) {
   return { cleanup: () => { map?.dispose(); document.body.classList.remove("has-book"); } };
 }
 
-const hl = (ic, title, text, cls = "") => `<div class="hl ${cls}">${icon(ic, 26)}<div><b>${title}</b><span>${text}</span></div></div>`;
+const chk = (cls, ic, title, text) => `<li class="${cls}">${icon(ic, 22)}<div><b>${title}</b><span>${text}</span></div></li>`;
+
+// One large photo with a thumbnail strip; tapping the photo opens all of them.
+function gallery(photos) {
+  if (!photos.length) return `<div class="stage empty-ph">${icon("image-plus", 40)}<span>Още няма снимки</span></div>`;
+  return `<div class="gallery" data-i="0">
+    <div class="stage"><button class="stage-img" id="stageBtn" aria-label="Отвори снимките"><img id="stageImg" src="${photoSrc(photos[0])}" alt="Снимка 1 от ${photos.length}"></button>
+      ${photos.length > 1 ? `<button class="icon-btn stage-nav prev" data-step="-1" aria-label="Предишна снимка">${icon("chevron-left", 20)}</button>
+      <button class="icon-btn stage-nav next" data-step="1" aria-label="Следваща снимка">${icon("chevron-right", 20)}</button>` : ""}
+      <span class="stage-count" id="stageN">1 / ${photos.length}</span></div>
+    ${photos.length > 1 ? `<div class="thumbs" role="tablist" aria-label="Снимки">${photos.map((p, i) => `<button role="tab" data-ph="${i}" aria-selected="${i === 0}" aria-label="Снимка ${i + 1}"><img src="${photoSrc(p)}" alt="" loading="lazy"></button>`).join("")}</div>` : ""}
+  </div>`;
+}
+
+function bindGallery(root, l) {
+  const g = $(".gallery", root); if (!g) return;
+  const n = l.photos.length;
+  const show = i => {
+    i = (i + n) % n; g.dataset.i = i;
+    $("#stageImg", g).src = photoSrc(l.photos[i]); $("#stageImg", g).alt = `Снимка ${i + 1} от ${n}`;
+    $("#stageN", g).textContent = `${i + 1} / ${n}`;
+    $$("[data-ph]", g).forEach(b => b.setAttribute("aria-selected", +b.dataset.ph === i));
+    $(`[data-ph="${i}"]`, g)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  };
+  g.addEventListener("click", e => {
+    const t = e.target.closest("[data-ph]"), st = e.target.closest("[data-step]");
+    if (t) show(+t.dataset.ph);
+    else if (st) show(+g.dataset.i + +st.dataset.step);
+    else if (e.target.closest("#stageBtn")) photos(l, +g.dataset.i);
+  });
+  let x0 = null;
+  g.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, { passive: true });
+  g.addEventListener("touchend", e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) show(+g.dataset.i + (dx < 0 ? 1 : -1)); x0 = null; });
+}
 
 function ownBox(l) {
   const threads = store.threadsOf(store.me().id).filter(t => t.listingId === l.id);
-  return `<div class="big" style="margin-bottom:6px">Твоята обява</div>
-    <p class="muted" style="margin:0 0 16px">Показва се като €${priceSplit(l).perPerson} на човек, със сметките.</p>
-    <div class="box-facts"><div><b>Прегледи</b><span>${l.views}</span></div><div><b>Разговори</b><span>${threads.length}</span></div>
-      <div><b>Статус</b><span>${l.status === "active" ? "Активна" : "Скрита"}</span></div><div><b>Любими</b><span>${store.users().filter(u => u.favorites.includes(l.id)).length}</span></div></div>
+  return `<div class="bill-head">${icon("house", 18)} Твоята обява <span>${l.status === "active" ? "активна" : "скрита"}</span></div>
+    <div class="bill-total"><mark>€${priceSplit(l).perPerson}</mark><span>така я виждат<br>другите</span></div>
+    <dl class="bill-facts"><div><dt>Прегледи</dt><dd>${l.views}</dd></div><div><dt>Разговори</dt><dd>${threads.length}</dd></div>
+      <div><dt>Статус</dt><dd>${l.status === "active" ? "Активна" : "Скрита"}</dd></div><div><dt>Запазили</dt><dd>${store.users().filter(u => u.favorites.includes(l.id)).length}</dd></div></dl>
     <a class="btn dark full" href="#/host/edit/${l.id}">${icon("pencil", 16)} Редактирай</a>
     <button class="btn ghost full" id="pause" style="margin-top:10px">${l.status === "active" ? "Скрий временно" : "Активирай отново"}</button>`;
 }

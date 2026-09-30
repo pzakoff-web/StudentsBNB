@@ -33,8 +33,15 @@ export function profilePage(main, id) {
 
   main.innerHTML = `<div class="wrap pp">
     <div>
-      <div class="pcard"><div class="l">${avatar(u, 104)}<h1>${esc(first)}</h1><div class="muted" style="font-size:14px">${u.role === "student" ? "Студент" : u.role === "agency" ? "Агенция" : "Хазяин"}</div></div>
-        <div class="r"><div><b>${rs.count}</b><span>Отзива</span></div><div><b>${rs.count ? fmtRating(rs.overall) + "★" : "—"}</b><span>Рейтинг</span></div><div><b>${yearsOn(u).split(" ")[0]}</b><span>${yearsOn(u).split(" ").slice(1).join(" ")} в делим</span></div></div></div>
+      <div class="idcard ${u.role}">
+        <div class="idcard-band">${icon(u.role === "student" ? "graduation-cap" : "key-round", 16)}<span>${u.role === "student" ? `Студент · ${esc(uni?.short || "")}` : u.role === "agency" ? "Агенция" : "Хазяин"}</span><span class="idcard-no">№ ${esc(u.id.toUpperCase())}</span></div>
+        <div class="idcard-body">${avatar(u, 88)}
+          <div><h1>${esc(u.name)}</h1>
+            <p>${u.role === "student" ? `${esc(u.faculty)}<br>${u.year} курс` : esc(u.languages?.join(", ") || "")}</p>
+            <p class="muted">В делим от ${yearsOn(u)}</p>
+            ${u.emailVerified || u.idVerified ? `<span class="stamp">Потвърден</span>` : ""}</div></div>
+        <dl class="idcard-stats"><div><dt>Отзиви</dt><dd>${rs.count}</dd></div><div><dt>Оценка</dt><dd>${rs.count ? fmtRating(rs.overall) : "—"}</dd></div><div><dt>Обяви</dt><dd>${ls.length}</dd></div></dl>
+      </div>
       <div class="pverify"><h3>Потвърдено за ${esc(first)}</h3>
         ${u.emailVerified ? `<div>${icon("check", 20, "ok")}Студентски имейл (${esc(uni?.short || "")})</div>` : ""}
         ${u.idVerified ? `<div>${icon("check", 20, "ok")}Самоличност</div>` : ""}

@@ -2,7 +2,7 @@ import * as store from "../store.js";
 import { icon } from "../icons.js";
 import { photoSrc } from "../photos.js";
 import { esc, starLine, toast, $$ } from "../ui.js";
-import { pricePerPerson, listingCompat, ratingSummary, isStudentFavourite, fmtDate, fmtMonths, GENDER_PREF } from "../logic.js";
+import { pricePerPerson, listingCompat, ratingSummary, isTopRated, fmtDate, GENDER_PREF } from "../logic.js";
 import { commuteMin } from "../geo.js";
 import { uniById } from "../data/places.js";
 import { currentUni } from "../state.js";
@@ -14,12 +14,18 @@ export function rowFor(l) {
 }
 
 export function pillFor({ l, compat, rating }) {
-  if (compat && compat.score >= 80) return `<span class="pill match">${icon("users", 13)} ${compat.score}% съвпадение</span>`;
-  if (isStudentFavourite(rating)) return `<span class="pill">${icon("trophy", 13)} Любимо на студентите</span>`;
-  if (Date.now() - new Date(l.createdAt) < 7 * 864e5) return `<span class="pill">Ново</span>`;
-  if (l.status === "paused") return `<span class="pill">Скрита</span>`;
+  if (l.status === "paused") return `<span class="badge">Скрита</span>`;
+  if (compat && compat.score >= 80) return `<span class="badge match">${compat.score}% съвпадение</span>`;
+  if (isTopRated(rating)) return `<span class="badge">${icon("star", 12, "star")} Топ оценка</span>`;
+  if (Date.now() - new Date(l.createdAt) < 7 * 864e5) return `<span class="badge">Нова</span>`;
   return "";
 }
+
+// Bookmark toggle shared by cards, map popups and the listing page.
+export const saveBtn = (id, size = 20) => {
+  const on = store.isFav(id);
+  return `<button class="save" data-fav="${id}" aria-pressed="${on}" aria-label="${on ? "Махни от запазени" : "Запази"}">${icon("bookmark", size)}</button>`;
+};
 
 export function carousel(photos, max = 5) {
   const ps = photos.slice(0, max);
@@ -32,23 +38,21 @@ export function carousel(photos, max = 5) {
 }
 
 export function cardHTML(row) {
-  const { l, pp, commute, rating } = row;
+  const { l, pp, commute, rating, compat } = row;
   const uni = uniById(currentUni());
-  const fav = store.isFav(l.id);
+  const who = l.type === "whole" ? `за ${l.occupants} ${l.occupants === 1 ? "човек" : "души"}` : GENDER_PREF[l.genderPref].toLowerCase();
   return `<a class="card" href="#/l/${l.id}" data-id="${l.id}">
-    ${carousel(l.photos)}
-    ${pillFor(row)}
-    <button class="heart" data-fav="${l.id}" aria-pressed="${fav}" aria-label="${fav ? "Махни от любими" : "Запази в любими"}">${icon("heart", 24)}</button>
+    <div class="card-media">${carousel(l.photos)}${pillFor(row)}${saveBtn(l.id)}</div>
     <div class="card-body">
-      <div class="card-top"><h3>${esc(l.district)}, Варна</h3>${starLine(rating)}</div>
-      <div class="sub">${esc(l.title)}</div>
-      <div class="sub">${commute} мин до ${uni.short} · ${l.type === "whole" ? `за ${l.occupants} ${l.occupants === 1 ? "човек" : "души"}` : GENDER_PREF[l.genderPref].toLowerCase()}</div>
-      <div class="sub">от ${fmtDate(l.availableFrom)} · мин. ${fmtMonths(l.minMonths)}</div>
-      <div class="price"><b>€${pp}</b> на човек / месец <span class="muted">· със сметките</span></div>
+      <div class="card-price"><mark>€${pp}</mark><span>на човек · със сметките</span></div>
+      <h3>${esc(l.title)}</h3>
+      <div class="card-meta">${icon("map-pin", 14)}${esc(l.district)} <span class="sep">·</span> ${icon("bus", 14)}${commute} мин до ${uni.short}</div>
+      <div class="card-foot"><span>${l.type === "room" ? "Стая" : "Цяло жилище"} · ${who} · от ${fmtDate(l.availableFrom)}</span>${starLine(rating, { count: true })}</div>
+      ${compat ? `<div class="card-match" title="Съвпадение със съквартирантите"><i style="width:${compat.score}%"></i></div>` : ""}
     </div></a>`;
 }
 
-// One delegated handler per container for carousels and hearts.
+// One delegated handler per container for carousels and bookmarks.
 export function bindCards(root) {
   root.addEventListener("click", e => {
     const nav = e.target.closest(".car-nav");
@@ -66,8 +70,8 @@ export function bindCards(root) {
     if (h) {
       e.preventDefault(); e.stopPropagation();
       const on = store.toggleFavorite(h.dataset.fav);
-      $$(`[data-fav="${h.dataset.fav}"]`).forEach(b => { b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? "Махни от любими" : "Запази в любими"); });
-      toast(on ? "Запазено в Любими" : "Премахнато от Любими");
+      $$(`[data-fav="${h.dataset.fav}"]`).forEach(b => { b.setAttribute("aria-pressed", on); b.setAttribute("aria-label", on ? "Махни от запазени" : "Запази"); });
+      toast(on ? "Запазено" : "Махнато от запазени");
     }
   });
 }

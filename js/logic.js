@@ -67,7 +67,7 @@ export function ratingSummary(reviews) {
   return { overall, count: reviews.length, cats };
 }
 
-export const isStudentFavourite = rs => rs.count >= 5 && rs.overall >= 4.85;
+export const isTopRated = rs => rs.count >= 5 && rs.overall >= 4.85;
 
 export const fmtRating = x => x == null ? "" : x.toFixed(2).replace(/0$/, "").replace(".", ",");
 
@@ -99,7 +99,7 @@ export const CATEGORIES = [
   { id: "match", label: "Високо съвпадение", icon: "users" },
   { id: "close", label: "До 15 мин от уни", icon: "graduation-cap" },
   { id: "sea", label: "До морето", icon: "waves" },
-  { id: "loved", label: "Любими на студентите", icon: "trophy" },
+  { id: "loved", label: "Топ оценка", icon: "trophy" },
   { id: "budget", label: "До €280", icon: "wallet" },
   { id: "balcony", label: "С балкон", icon: "sun" },
   { id: "quiet", label: "Тихи квартири", icon: "moon" },
@@ -149,7 +149,7 @@ function inCategory({ l, pp, commute, compat, rating }, cat, userById, now) {
     case "match": return !!compat && compat.score >= 80;
     case "close": return commute <= 15;
     case "sea": return seaDistanceM(l.approx) <= 900;
-    case "loved": return isStudentFavourite(rating);
+    case "loved": return isTopRated(rating);
     case "budget": return pp <= 280;
     case "balcony": return l.amenities.includes("balcony");
     case "pets": return l.amenities.includes("pets");

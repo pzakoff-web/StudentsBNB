@@ -39,6 +39,7 @@ export function hostingPage(main) {
 }
 
 const STEPS = ["type", "where", "details", "photos", "price", "who", "text", "review"];
+const STEP_NAMES = ["Вид", "Адрес", "Жилище", "Снимки", "Цена", "Условия", "Текст", "Преглед"];
 
 export function listingWizard(main, editId) {
   const me = store.me();
@@ -68,10 +69,15 @@ export function listingWizard(main, editId) {
   function render() {
     map?.dispose(); map = null;
     const s = STEPS[step];
-    main.innerHTML = `<div class="wiz"><div class="wiz-body" id="wb">${body(s)}</div>
-      <div class="wiz-foot"><div class="wiz-prog"><i style="width:${(step + 1) / STEPS.length * 100}%"></i></div>
-      <div class="wiz-nav"><button class="btn link" id="prev" ${step ? "" : "hidden"}>Назад</button><span class="muted" style="font-size:13px">Стъпка ${step + 1} от ${STEPS.length}</span>
-        <button class="btn ${s === "review" ? "primary" : "dark"}" id="next" ${valid() ? "" : "disabled"}>${s === "review" ? (src ? "Запази промените" : "Публикувай") : "Напред"}</button></div></div></div>`;
+    const reach = i => i <= step || STEPS.slice(0, i).every(x => valid(x)) && !!src;
+    main.innerHTML = `<div class="wiz">
+      <aside class="wiz-steps" aria-label="Стъпки"><p class="kicker">${src ? "Редакция на обява" : "Нова обява"}</p><ol>${STEPS.map((x, i) =>
+        `<li class="${i === step ? "on" : i < step ? "done" : ""}"><button type="button" data-go="${i}" ${reach(i) && i !== step ? "" : "disabled"} ${i === step ? 'aria-current="step"' : ""}>
+          <span class="num">${i < step ? icon("check", 14) : i + 1}</span>${STEP_NAMES[i]}</button></li>`).join("")}</ol></aside>
+      <div class="wiz-body" id="wb"><p class="wiz-mstep">Стъпка ${step + 1} от ${STEPS.length} · ${STEP_NAMES[step]}</p>${body(s)}</div>
+      <div class="wiz-foot"><div class="wiz-nav"><button class="btn ghost" id="prev" ${step ? "" : "hidden"}>${icon("arrow-left", 16)} Назад</button>
+        <button class="btn ${s === "review" ? "yellow" : "dark"}" id="next" ${valid() ? "" : "disabled"}>${s === "review" ? (src ? "Запази промените" : "Публикувай") : `Напред ${icon("arrow-right", 16)}`}</button></div></div></div>`;
+    $$("[data-go]").forEach(b => b.onclick = () => { if (STEPS[step] === "text") touchedTitle = true; step = +b.dataset.go; render(); });
     $("#prev").onclick = () => { step--; render(); };
     $("#next").onclick = next;
     wire(s);
@@ -208,7 +214,7 @@ export function listingWizard(main, editId) {
       const a = src && src.exact && Math.hypot(src.exact.lat - d.exact.lat, src.exact.lng - d.exact.lng) < 2e-4 ? src.approx : approximate(d.exact);
       marker ? marker.setLatLng(d.exact) : (marker = L.marker(d.exact, { draggable: true, icon: L.divIcon({ className: "pin-wrap", iconSize: [0, 0], html: `<div class="pin-exact"></div>` }) }).addTo(map)
         .on("dragend", e => place(e.target.getLatLng(), true)));
-      circle ? circle.setLatLng([a.lat, a.lng]) : (circle = L.circle([a.lat, a.lng], { radius: PRIVACY_RADIUS_M, color: "#E5484D", weight: 2, fillColor: "#E5484D", fillOpacity: .15, interactive: false }).addTo(map));
+      circle ? circle.setLatLng([a.lat, a.lng]) : (circle = L.circle([a.lat, a.lng], { radius: PRIVACY_RADIUS_M, color: "#1F5FA8", weight: 2, fillColor: "#1F5FA8", fillOpacity: .16, interactive: false }).addTo(map));
       if (!fromMap) map.setView(d.exact, 16);
       if (!d.address.trim()) { d.address = `${d.district}, Варна`; $("#addr").value = d.address; }
       $("#whereNote").innerHTML = whereNote();

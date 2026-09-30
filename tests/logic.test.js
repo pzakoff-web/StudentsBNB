@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pricePerPerson, priceSplit, compatWith, listingCompat, search, normalize, DEFAULT_FILTERS, ratingSummary, isStudentFavourite, fmtMonths } from "../js/logic.js";
+import { pricePerPerson, priceSplit, compatWith, listingCompat, search, normalize, DEFAULT_FILTERS, ratingSummary, isTopRated, fmtMonths } from "../js/logic.js";
 import { distanceM, approximate, commuteMin, PRIVACY_RADIUS_M, nearestDistrict } from "../js/geo.js";
 import { buildSeed, rng } from "../js/data/seed.js";
 import { UNIVERSITIES } from "../js/data/places.js";
@@ -86,8 +86,8 @@ test("whole-flat listings have no compatibility score", () => {
 
 test("ratings and student-favourite badge", () => {
   const rs = ratingSummary([5, 5, 5, 5, 4.9].map(s => ({ stars: s, cats: { clean: s } })));
-  assert.ok(isStudentFavourite(rs));
-  assert.ok(!isStudentFavourite(ratingSummary([{ stars: 5 }])));
+  assert.ok(isTopRated(rs));
+  assert.ok(!isTopRated(ratingSummary([{ stars: 5 }])));
   assert.equal(fmtMonths(24), "2 години");
 });
 

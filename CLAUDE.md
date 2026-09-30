@@ -20,7 +20,7 @@ The user (Petar Zakov) writes in Bulgarian; reply in Bulgarian unless told other
 - Exact address is stored privately. Everyone else sees a 100 m circle whose centre is offset randomly **once** at save time (recomputing per view would let people average it back). The address unlocks only for the owner or after both sides agree to share phones in chat. The street address is excluded from search for the same reason.
 - Commute = faster of walking and bus (9 min walk/wait + road distance at 22 km/h). Placeholder until real GTFS data.
 - Map tiles: OpenStreetMap standard tiles, CSS-muted to look like Airbnb. OK for a prototype only; production needs a keyed provider. CARTO now requires an API key.
-- Visual language follows Airbnb (search pill, category row, card carousels, price pins that collapse to dots when crowded, sticky booking box). Accent `#E5484D`, highlight `#FFD83D` for matches and the logo.
+- Visual identity is deliberately our own, not Airbnb's (the user asked to avoid trade-dress risk): no coral red, no segmented search pill, no icon category row, no 1+4 photo grid, no "Guest favourite" laurels, no copied section titles. Keep it that way.
 - Demo-only shortcuts, all labelled in the UI: auto-reply in chat, auto-accept of phone sharing, e-mail code shown in a toast, anyone can write a review, "Влез като" user switcher.
 
 ## Canonical test case
@@ -58,7 +58,7 @@ price_per_person = round(rent_total/occupants + utilities_avg/occupants)
 ```
 
 ## Visual direction
-Airbnb-like layout, light theme only. Fonts: Unbounded (logo) and Manrope (UI). Accent `#E5484D`, highlighter yellow `#FFD83D` for matches and the logo, ink `#222`. Icons: lucide-static (ISC), inlined in `js/icons.js`. Leaflet 1.9.4 is vendored in `vendor/leaflet`.
+"Split the bill": cool paper background `#F3F6F4`, ink `#16232E` outlines, highlighter yellow `#FFD83D` marks on money and the logo, marine `#1F5FA8` for maps/universities. Signature pieces: price tags with a pointer on the map, per-person price as a highlighted mark on cards, the listing's split shown as a receipt with a torn edge, the profile as a student ID card with a "Потвърден" stamp, a numbered step list in the listing wizard. Light theme only. Fonts: Unbounded (headings, prices) and Manrope (UI). Icons: lucide-static (ISC), inlined in `js/icons.js`. Leaflet 1.9.4 is vendored in `vendor/leaflet`.
 
 ## Open questions
 - Real transit data, tile provider and geocoder with API keys.

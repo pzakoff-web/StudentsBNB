@@ -5,7 +5,7 @@ import { search, CATEGORIES, AMENITIES, DEFAULT_FILTERS, plural } from "../logic
 import { UNIVERSITIES, uniById, VARNA_CENTER } from "../data/places.js";
 import { PRIVACY_RADIUS_M } from "../geo.js";
 import { S, saveUI, currentUni, activeFilterCount } from "../state.js";
-import { cardHTML, bindCards, carousel, pillFor } from "./card.js";
+import { cardHTML, bindCards, carousel, pillFor, saveBtn } from "./card.js";
 
 // Standard OpenStreetMap tiles: fine for a prototype under the OSM tile usage policy.
 // Production needs a tile provider with an API key (MapTiler, Stadia, Mapbox…).
@@ -36,9 +36,10 @@ export function explore(main) {
   const uni = uniById(currentUni());
   main.innerHTML = `
     <div class="cats" id="cats"><div class="wrap-wide cats-in">
-      <div class="cat-scroll" role="toolbar" aria-label="Категории">${CATEGORIES.map(c =>
-        `<button class="cat" data-cat="${c.id}" aria-pressed="${f.category === c.id}">${icon(c.icon, 24)}${c.label}</button>`).join("")}</div>
       <button class="filter-btn" id="fBtn">${icon("sliders-horizontal", 16)} Филтри ${activeFilterCount() ? `<span class="n">${activeFilterCount()}</span>` : ""}</button>
+      <div class="cat-scroll" role="toolbar" aria-label="Бързи филтри">
+        ${f.q ? `<button class="cat q" id="clearQ" aria-label="Махни търсенето „${esc(f.q)}“">„${esc(f.q)}“ ${icon("x", 14)}</button>` : ""}
+        ${CATEGORIES.map(c => `<button class="cat" data-cat="${c.id}" aria-pressed="${f.category === c.id}">${c.label}</button>`).join("")}</div>
     </div></div>
     <div class="explore ${S.showMap ? "show-map" : ""}" id="exp">
       <section class="results" aria-live="polite">
@@ -94,7 +95,7 @@ export function explore(main) {
     declutter();
   }
 
-  // Like Airbnb: a price pin only where it fits; the rest shrink to dots until you zoom in.
+  // A price tag only where it fits; the rest shrink to dots until you zoom in.
   function declutter() {
     const placed = [];
     for (const r of rows) {
@@ -110,10 +111,9 @@ export function explore(main) {
   map.on("zoomend", declutter);
 
   const pinHTML = r => `<div class="pin ${r.compat?.score >= 80 ? "match" : ""} ${store.isFav(r.l.id) ? "fav" : ""}" data-pin="${r.l.id}">€${r.pp}</div>`;
-  const popupHTML = r => `<a class="card" href="#/l/${r.l.id}" style="display:block">${carousel(r.l.photos)}${pillFor(r)}
-    <button class="heart" data-fav="${r.l.id}" aria-pressed="${store.isFav(r.l.id)}" aria-label="Любими">${icon("heart", 22)}</button>
-    <div class="card-body"><div class="card-top"><h3>${esc(r.l.district)}</h3>${starLine(r.rating)}</div>
-    <div class="sub">${esc(r.l.title)}</div><div class="price"><b>€${r.pp}</b> на човек / месец</div></div></a>`;
+  const popupHTML = r => `<a class="card" href="#/l/${r.l.id}" style="display:block"><div class="card-media">${carousel(r.l.photos)}${pillFor(r)}${saveBtn(r.l.id, 18)}</div>
+    <div class="card-body"><div class="card-price"><mark>€${r.pp}</mark><span>на човек · със сметките</span></div>
+    <h3>${esc(r.l.title)}</h3><div class="card-foot"><span>${esc(r.l.district)}</span>${starLine(r.rating)}</div></div></a>`;
 
   function setSel(id, hover = false) {
     $$(".pin.sel, .pin.hover").forEach(p => p.classList.remove("sel", "hover"));
@@ -121,7 +121,7 @@ export function explore(main) {
     if (!id) return;
     const r = rows.find(x => x.l.id === id); if (!r) return;
     $(`[data-pin="${id}"]`)?.classList.add(hover ? "hover" : "sel");
-    circle = L.circle([r.l.approx.lat, r.l.approx.lng], { radius: PRIVACY_RADIUS_M, color: "#222", weight: 1.5, fillColor: "#E5484D", fillOpacity: .12, interactive: false }).addTo(map);
+    circle = L.circle([r.l.approx.lat, r.l.approx.lng], { radius: PRIVACY_RADIUS_M, color: "#16232E", weight: 1.5, fillColor: "#1F5FA8", fillOpacity: .14, interactive: false }).addTo(map);
   }
 
   grid.addEventListener("mouseover", e => { const c = e.target.closest(".card"); if (c && !c.contains(e.relatedTarget)) { setSel(c.dataset.id, true); markers.get(c.dataset.id)?.setZIndexOffset(1000); } });
@@ -136,6 +136,7 @@ export function explore(main) {
     $$(".cat").forEach(x => x.setAttribute("aria-pressed", x === b));
     firstFit = true; draw();
   });
+  $("#clearQ")?.addEventListener("click", () => { S.filters.q = ""; saveUI(); rerender(); });
   $("#sortSel").onchange = e => { S.filters.sort = e.target.value; saveUI(); draw(); };
   $("#inBounds").onchange = e => { S.inBounds = e.target.checked; draw(); };
   $("#fBtn").onclick = () => filtersModal(rerender);
