@@ -4,9 +4,9 @@ import { icon } from "../icons.js";
 import { photoSrc } from "../photos.js";
 import { $, esc, modal, toast, download, copyText } from "../ui.js";
 import { pricePerPerson, fmtDate, fmtMonths, TYPE_LABEL } from "../logic.js";
-import { commuteMin } from "../geo.js";
-import { uniById, uniShort, districtName, cityName } from "../data/places.js";
-import { currentUni } from "../state.js";
+import { nearestUni } from "../geo.js";
+import { uniShort, districtName, cityName, unisByIds } from "../data/places.js";
+import { currentUnis } from "../state.js";
 import { t } from "../i18n.js";
 
 const W = 1200, H = 630;
@@ -15,11 +15,11 @@ const C = { paper: "#F3F6F4", ink: "#16232E", muted: "#5B6B77", hl: "#FFD83D", m
 export const listingUrl = l => `${location.origin}${location.pathname}#/l/${l.id}`;
 
 export function postText(l) {
-  const uni = uniById(currentUni());
+  const near = nearestUni(l.approx, unisByIds(currentUnis()));
   const who = { m: t("Търся съквартирант (мъж)."), f: t("Търся съквартирантка."), any: "" }[l.genderPref];
   return [
     t("{type} в {d}, {city} — €{pp} на човек със сметките", { type: t(TYPE_LABEL[l.type]), d: districtName(l.district), city: cityName(), pp: pricePerPerson(l) }),
-    t("{n} мин до {uni} · от {date} · мин. {months}", { n: commuteMin(l.approx, uni), uni: uniShort(uni), date: fmtDate(l.availableFrom), months: fmtMonths(l.minMonths) }),
+    t("{n} мин до {uni} · от {date} · мин. {months}", { n: near.min, uni: uniShort(near.uni), date: fmtDate(l.availableFrom), months: fmtMonths(l.minMonths) }),
     l.type === "room" ? who : t("За {n} души. Може и група.", { n: l.occupants }),
     "",
     t("Снимки, точна сметка и чат с домакина:"),
@@ -89,9 +89,9 @@ export async function renderCard(l) {
   // Receipt line and facts.
   ctx.strokeStyle = C.line; ctx.lineWidth = 2; ctx.setLineDash([8, 8]);
   ctx.beginPath(); ctx.moveTo(x, 448); ctx.lineTo(W - 48, 448); ctx.stroke(); ctx.setLineDash([]);
-  const uni = uniById(currentUni());
+  const near = nearestUni(l.approx, unisByIds(currentUnis()));
   ctx.font = "700 26px Manrope, Arial, sans-serif"; ctx.fillStyle = C.ink;
-  ctx.fillText(t("{n} мин до {uni}", { n: commuteMin(l.approx, uni), uni: uniShort(uni) }) + "  ·  " + t("от {date}", { date: fmtDate(l.availableFrom) }), x, 494);
+  ctx.fillText(t("{n} мин до {uni}", { n: near.min, uni: uniShort(near.uni) }) + "  ·  " + t("от {date}", { date: fmtDate(l.availableFrom) }), x, 494);
   ctx.font = "600 24px Manrope, Arial, sans-serif"; ctx.fillStyle = C.muted;
   ctx.fillText(t("Минимален срок") + ": " + fmtMonths(l.minMonths), x, 532);
   ctx.font = "700 20px Manrope, Arial, sans-serif"; ctx.fillStyle = C.marine;

@@ -51,6 +51,13 @@ async function newPage(viewport) {
   p.on("pageerror", e => p.errors.push(e.message));
   // Map tiles and fonts come from the internet; the app must work without them.
   await p.route(/tile\.openstreetmap\.org|fonts\.(googleapis|gstatic)\.com|nominatim/, r => r.abort());
+  // Machine translation is stubbed: "[en] " + the text, and the requests are counted.
+  p.txCalls = [];
+  await p.route(/api\.mymemory\.translated\.net/, r => {
+    const u = new URL(r.request().url()), q = u.searchParams.get("q"), to = u.searchParams.get("langpair").split("|")[1];
+    p.txCalls.push(q);
+    r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ responseStatus: 200, responseData: { translatedText: `[${to}] ${q}` } }) });
+  });
   return { ctx, p };
 }
 const store = (p, fn, ...args) => p.evaluate(async ([f, a]) => { const s = await import("/js/store.js"); return s[f](...a); }, [fn, args]);
@@ -84,6 +91,16 @@ try {
   await p.goBack(); await p.waitForSelector("#grid .card"); await p.waitForTimeout(300);
   const y1 = await p.evaluate(() => scrollY);
   ok(Math.abs(y1 - y0) < 60, `"back" returns to the same place in the list (${y0} → ${y1})`);
+
+  // several universities
+  await p.click("#uniBtn"); await p.waitForSelector("#upAll");
+  await p.uncheck("#upAll"); await p.check('[data-uni="IU"]'); await p.check('[data-uni="TU"]'); await p.click("#upGo");
+  await p.waitForTimeout(300);
+  const uniTxt = await p.textContent("#uniBtn b");
+  const cm = await p.locator("#grid .card .card-meta").allTextContents();
+  ok(uniTxt.includes("ИУ") && uniTxt.includes("ТУ") && cm.length && cm.every(m => /ИУ|ТУ/.test(m)), `two universities picked: ${uniTxt}`);
+  await p.click("#uniBtn"); await p.check("#upAll"); await p.click("#upGo"); await p.waitForTimeout(300);
+  ok((await p.textContent("#uniBtn b")).includes("всички"), "all universities");
 
   // fair price
   await p.click('[data-cat="fair"]'); await p.waitForSelector("#grid .card");
@@ -170,6 +187,17 @@ try {
   await p.goto(U + "#/l/l1"); await p.waitForSelector(".bill-head");
   ok((await p.textContent(".bill-head")).includes("Your share"), "English bill");
   ok((await p.textContent(".split")).includes("€32.50"), "English number format");
+  ok((await p.textContent(".lp-title")) === "Free bedroom in a two-room flat, Mladost", "listing title translated");
+  ok((await p.textContent(".hostline b")) === "Ivan Petkov", "host name transliterated");
+  ok((await p.textContent(".lp-sec .tx-wrap .desc")).startsWith("My flatmate graduated"), "description translated");
+  await p.click(".tx-note"); ok((await p.isVisible(".tx-orig")) && (await p.textContent(".tx-orig")).startsWith("Съквартирантът"), "switch shows the original");
+  ok(p.txCalls.length === 0, "demo content needs no translation service");
+  await p.goto(U + "#/l/" + newId); await p.waitForSelector(".lp-title");
+  await p.waitForFunction(() => document.querySelector(".lp-sec .tx-wrap .desc")?.textContent.startsWith("[en] "), null, { timeout: 5000 });
+  ok((await p.textContent(".lp-sec .tx-wrap .desc")).startsWith("[en] Тристаен"), "new listing translated by the service, swapped in place");
+  const calls = p.txCalls.length;
+  await p.reload(); await p.waitForSelector(".lp-title"); await p.waitForTimeout(300);
+  ok(p.txCalls.length === calls && (await p.textContent(".lp-sec .tx-wrap .desc")).startsWith("[en] "), "translations are cached");
   await p.click("#menuBtn"); await p.click('[data-lang="de"]'); await p.waitForSelector(".bill-head");
   ok((await p.textContent(".bill-head")).includes("Dein Anteil"), "German bill");
   ok(await p.evaluate(() => document.documentElement.lang) === "de", "html lang follows the language");
@@ -193,6 +221,12 @@ try {
   });
   ok(swiped.scrollable && swiped.dot === 1, "card photos scroll sideways (swipe) and the dots follow");
   ok(await m.isVisible(".m-bell"), "bell is in the phone header");
+  await m.click("#mapTgl"); await m.waitForTimeout(400);
+  const tiles = await m.evaluate(() => [...document.querySelectorAll("#map .leaflet-tile")].map(i => new URL(i.src).pathname.split("/").slice(1, 4).map(n => parseInt(n))));
+  const z = tiles[0]?.[0], n = 2 ** z, cx = Math.floor((27.9147 + 180) / 360 * n);
+  const cy = Math.floor((1 - Math.log(Math.tan(43.2141 * Math.PI / 180) + 1 / Math.cos(43.2141 * Math.PI / 180)) / Math.PI) / 2 * n);
+  ok(z >= 12 && tiles.every(t => t[0] === z) && tiles.some(t => t[1] === cx && t[2] === cy), `phone map opens on Varna (tile zoom ${z})`);
+  await m.click("#mapTgl");
   for (const lang of ["bg", "en"]) {
     for (const r of ["", "#/l/l1", "#/l/l4", "#/u/u1", "#/people", "#/inbox/t1", "#/group", "#/notifications", "#/host/new", "#/me/edit"]) {
       await m.goto(U + r); await m.waitForTimeout(350);

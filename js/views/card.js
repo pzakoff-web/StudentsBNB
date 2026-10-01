@@ -3,14 +3,16 @@ import { icon } from "../icons.js";
 import { photoSrc } from "../photos.js";
 import { esc, starLine, toast, $$ } from "../ui.js";
 import { pricePerPerson, listingCompat, ratingSummary, isTopRated, fmtDate, GENDER_PREF, fairPrice, isGoodDeal } from "../logic.js";
-import { commuteMin } from "../geo.js";
-import { uniById, uniShort, districtName } from "../data/places.js";
-import { currentUni } from "../state.js";
+import { nearestUni } from "../geo.js";
+import { uniShort, districtName, unisByIds } from "../data/places.js";
+import { currentUnis } from "../state.js";
 import { t } from "../i18n.js";
+import { tx } from "../translate.js";
 
 export function rowFor(l) {
   const me = store.me();
-  return { l, pp: pricePerPerson(l), commute: commuteMin(l.approx, uniById(currentUni())),
+  const near = nearestUni(l.approx, unisByIds(currentUnis()));
+  return { l, pp: pricePerPerson(l), commute: near.min, commuteUni: near.uni,
     compat: listingCompat(l, me, store.user), rating: ratingSummary(store.reviewsFor(l.id)) };
 }
 
@@ -44,14 +46,13 @@ export function carousel(photos, max = 5) {
 }
 
 export function cardHTML(row) {
-  const { l, pp, commute, rating, compat } = row;
-  const uni = uniById(currentUni());
+  const { l, pp, commute, commuteUni: uni, rating, compat } = row;
   const who = l.type === "whole" ? forPeople(l.occupants) : t(GENDER_PREF[l.genderPref]).toLowerCase();
   return `<a class="card" href="#/l/${l.id}" data-id="${l.id}">
     <div class="card-media">${carousel(l.photos)}${pillFor(row)}${saveBtn(l.id)}</div>
     <div class="card-body">
       <div class="card-price"><mark>€${pp}</mark><span>${t("на човек · със сметките")}</span></div>
-      <h3>${esc(l.title)}</h3>
+      <h3>${tx(l.title)}</h3>
       <div class="card-meta">${icon("map-pin", 14)}${esc(districtName(l.district))} <span class="sep">·</span> ${icon("bus", 14)}${t("{n} мин до {uni}", { n: commute, uni: uniShort(uni) })}</div>
       <div class="card-foot"><span>${t(l.type === "room" ? "Стая" : "Цяло жилище")} · ${who} · ${t("от {date}", { date: fmtDate(l.availableFrom) })}</span>${starLine(rating, { count: true })}</div>
       ${compat ? `<div class="card-match" title="${t("Съвпадение със съквартирантите")}"><i style="width:${compat.score}%"></i></div>` : ""}

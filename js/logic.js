@@ -1,7 +1,8 @@
 // Pure domain logic: no DOM, no storage. Covered by tests/logic.test.js.
-import { UNIVERSITIES, uniById, districtName } from "./data/places.js";
-import { commuteMin, seaDistanceM } from "./geo.js";
+import { uniById, districtName, unisByIds } from "./data/places.js";
+import { seaDistanceM, nearestUni } from "./geo.js";
 import { t, plural, getLang, locale } from "./i18n.js";
+import { plain } from "./translate.js";
 
 export { plural };
 
@@ -114,7 +115,7 @@ export const normalize = s => String(s || "").toLowerCase().replace(/[„“"'.,
 export function haystack(l, userById) {
   const host = userById(l.hostId);
   const uni = host && uniById(host.university);
-  return normalize([l.title, l.description, l.district, districtName(l.district), TYPE_LABEL[l.type], t(TYPE_LABEL[l.type]),
+  return normalize([l.title, l.description, plain(l.title), plain(l.description), l.district, districtName(l.district), TYPE_LABEL[l.type], t(TYPE_LABEL[l.type]),
     ...l.amenities.flatMap(a => AMENITIES[a] ? [AMENITIES[a][0], t(AMENITIES[a][0])] : []), host?.name, uni?.short, uni?.shortLat, uni?.name, uni?.nameEn].join(" "));
 }
 
@@ -149,8 +150,9 @@ export const DEFAULT_FILTERS = {
 
 // Returns enriched rows {l, pp, commute, compat, rating} that pass the filters, sorted.
 export function search(listings, f, ctx) {
-  const { me, uniId, userById, reviewsFor, now = new Date(), groupSize = 0 } = ctx;
-  const uni = uniById(uniId) || UNIVERSITIES[0];
+  const { me, userById, reviewsFor, now = new Date(), groupSize = 0 } = ctx;
+  // Travel time is to the closest of the chosen universities; [] means all of them.
+  const unis = unisByIds(ctx.uniIds ?? (ctx.uniId ? [ctx.uniId] : []));
   const rows = [];
   for (const l of listings) {
     if (l.status !== "active") continue;
@@ -160,7 +162,7 @@ export function search(listings, f, ctx) {
     const pp = pricePerPerson(l);
     if (f.maxPrice && pp > f.maxPrice) continue;
     if (f.minPrice && pp < f.minPrice) continue;
-    const commute = commuteMin(l.approx, uni);
+    const near = nearestUni(l.approx, unis), commute = near.min;
     if (f.maxCommute && commute > f.maxCommute) continue;
     if (f.stay && l.minMonths > f.stay) continue;
     if (f.moveIn && l.availableFrom > f.moveIn) continue;
@@ -171,7 +173,7 @@ export function search(listings, f, ctx) {
     const rating = ratingSummary(reviewsFor(l.id));
     if (f.minRating && !(rating.overall >= f.minRating)) continue;
     const compat = listingCompat(l, me, userById);
-    const row = { l, pp, commute, compat, rating };
+    const row = { l, pp, commute, commuteUni: near.uni, compat, rating };
     if (f.category === "fair") row.fair = fairPrice(l, listings);
     if (!inCategory(row, f.category, userById, now, groupSize)) continue;
     rows.push(row);

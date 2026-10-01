@@ -9,14 +9,15 @@ try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { /* privat
 
 export const S = {
   filters: { ...DEFAULT_FILTERS, ...(saved.filters || {}) },
-  uniId: saved.uniId || "",
+  // Chosen universities: null = the viewer's own, [] = all, or a list of ids.
+  uniIds: Array.isArray(saved.uniIds) ? saved.uniIds : saved.uniId ? [saved.uniId] : null,
   lang: setLang(detectLang(saved.lang)),
   showMap: false,
   inBounds: false,
 };
 
 export function saveUI() {
-  try { localStorage.setItem(KEY, JSON.stringify({ filters: S.filters, uniId: S.uniId, lang: S.lang })); } catch { /* ignore */ }
+  try { localStorage.setItem(KEY, JSON.stringify({ filters: S.filters, uniIds: S.uniIds, lang: S.lang })); } catch { /* ignore */ }
 }
 
 export function changeLang(l) {
@@ -24,7 +25,8 @@ export function changeLang(l) {
   document.documentElement.lang = S.lang;
 }
 
-export const currentUni = () => S.uniId || store.me()?.university || "IU";
+export const currentUnis = () => S.uniIds ?? [store.me()?.university || "IU"];
+export function setUnis(ids) { S.uniIds = ids; saveUI(); }
 
 export function activeFilterCount(f = S.filters) {
   let n = 0;

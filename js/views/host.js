@@ -9,6 +9,7 @@ import { roomsWord } from "./listing.js";
 import { forPeople } from "./card.js";
 import { geocode, nearestDistrict, approximate, commuteMin, PRIVACY_RADIUS_M } from "../geo.js";
 import { baseMap, uniMarkers } from "./explore.js";
+import { tx } from "../translate.js";
 
 export function hostingPage(main) {
   const draw = () => {
@@ -19,7 +20,7 @@ export function hostingPage(main) {
       ${ls.length ? ls.map(l => {
         const conv = store.threadsOf(me.id).filter(th => th.listingId === l.id).length;
         return `<div class="hrow"><a href="#/l/${l.id}">${l.photos[0] ? `<img src="${photoSrc(l.photos[0])}" alt="">` : `<div style="width:120px;height:84px;border-radius:8px;background:var(--soft);display:grid;place-items:center">${icon("image-plus", 24)}</div>`}</a>
-          <div style="min-width:0"><a href="#/l/${l.id}" style="text-decoration:none"><h3>${esc(l.title)}</h3></a>
+          <div style="min-width:0"><a href="#/l/${l.id}" style="text-decoration:none"><h3>${tx(l.title)}</h3></a>
             <div class="stat-row"><span class="tag ${l.status === "active" ? "ok" : "warn"}">${l.status === "active" ? t("Активна") : t("Скрита")}</span>
               <span>${t("€{n} на човек", { n: pricePerPerson(l) })}</span><span>${icon("eye", 14)} ${l.views}</span><span>${icon("message-circle", 14)} ${conv}</span><span>${esc(districtName(l.district))}</span></div></div>
           <div class="acts"><a class="btn ghost sm" href="#/host/edit/${l.id}">${icon("pencil", 14)} ${t("Редактирай")}</a>

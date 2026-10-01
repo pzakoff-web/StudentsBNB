@@ -77,6 +77,22 @@ test("search filters: gender, stay, price, category, query", () => {
   assert.deepEqual(scores, [...scores].sort((a, b) => b - a));
 });
 
+test("search with several universities measures to the nearest one", () => {
+  const db = buildSeed(NOW);
+  const byId = id => db.users.find(u => u.id === id);
+  const base = { me: byId(db.currentUserId), userById: byId, reviewsFor: id => db.reviews.filter(r => r.listingId === id), now: NOW };
+  const one = id => new Map(search(db.listings, DEFAULT_FILTERS, { ...base, uniIds: [id] }).map(r => [r.l.id, r.commute]));
+  const iu = one("IU"), tu = one("TU");
+  const both = search(db.listings, DEFAULT_FILTERS, { ...base, uniIds: ["IU", "TU"] });
+  assert.ok(both.length);
+  for (const r of both) {
+    assert.equal(r.commute, Math.min(iu.get(r.l.id), tu.get(r.l.id)));
+    assert.ok(["IU", "TU"].includes(r.commuteUni.id));
+  }
+  const all = search(db.listings, DEFAULT_FILTERS, { ...base, uniIds: [] });
+  assert.ok(all.every(r => r.commute <= iu.get(r.l.id)), "all universities is never further than one");
+});
+
 test("whole-flat listings have no compatibility score", () => {
   const db = buildSeed(NOW);
   const byId = id => db.users.find(u => u.id === id);

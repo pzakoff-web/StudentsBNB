@@ -140,8 +140,11 @@ export function addReview(r) {
 // ---------- saved searches & notifications ----------
 export const savedSearches = (id = db.currentUserId) => db.savedSearches.filter(s => s.userId === id);
 
-export function saveSearch({ name, filters, uniId }) {
-  const s = { id: uid("s"), userId: db.currentUserId, name, filters: { ...DEFAULT_FILTERS, ...filters, sort: "recommended" }, uniId, createdAt: now() };
+// Older saved searches have a single uniId.
+export const searchUnis = s => s.uniIds ?? (s.uniId ? [s.uniId] : []);
+
+export function saveSearch({ name, filters, uniIds }) {
+  const s = { id: uid("s"), userId: db.currentUserId, name, filters: { ...DEFAULT_FILTERS, ...filters, sort: "recommended" }, uniIds, createdAt: now() };
   db.savedSearches.unshift(s); commit(); return s;
 }
 export function deleteSearch(id) {
@@ -157,7 +160,7 @@ export function matchingSearches(l) {
   for (const s of db.savedSearches) {
     if (s.userId === l.hostId) continue;
     const viewer = user(s.userId); if (!viewer) continue;
-    const ok = search([l], s.filters, { me: viewer, uniId: s.uniId || viewer.university, userById: user, reviewsFor }).length > 0;
+    const ok = search([l], s.filters, { me: viewer, uniIds: searchUnis(s), userById: user, reviewsFor }).length > 0;
     if (ok) hits.push(s);
   }
   return hits;

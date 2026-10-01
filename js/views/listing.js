@@ -4,13 +4,14 @@ import { photoSrc } from "../photos.js";
 import { $, $$, esc, nl2br, avatar, modal, toast, stars, go, download, copyText } from "../ui.js";
 import { AMENITIES, REVIEW_CATS, TYPE_LABEL, priceSplit, listingCompat, ratingSummary, isTopRated,
   fmtRating, fmtDate, fmtMonths, fmtMonthYear, eur, plural, fairPrice, fairLabel, isGoodDeal, groupCompat } from "../logic.js";
-import { UNIVERSITIES, uniById, uniShort, uniName, districtName, cityName } from "../data/places.js";
-import { commuteMin, seaDistanceM, PRIVACY_RADIUS_M } from "../geo.js";
-import { currentUni, S } from "../state.js";
+import { UNIVERSITIES, uniById, uniShort, uniName, districtName, cityName, unisByIds, isAllUnis } from "../data/places.js";
+import { commuteMin, seaDistanceM, nearestUni, PRIVACY_RADIUS_M } from "../geo.js";
+import { currentUnis, S } from "../state.js";
 import { t } from "../i18n.js";
 import { baseMap, uniMarkers } from "./explore.js";
 import { shareDialog } from "./share.js";
 import { forPeople } from "./card.js";
+import { tx, txBlock, nm } from "../translate.js";
 
 const ROOMS = ["", "гарсониера", "двустаен", "тристаен", "четиристаен", "петстаен"];
 export const roomsWord = n => ROOMS[n] ? t(ROOMS[n]) : t("{n}-стаен", { n });
@@ -21,7 +22,7 @@ export function userLine(u) {
   if (!u) return "";
   if (u.role !== "student") return u.role === "agency" ? t("Агенция") : t("Хазяин, частно лице");
   const uni = uniById(u.university);
-  return t("{year} курс, {faculty}, {uni}", { year: u.year, faculty: esc(u.faculty), uni: uniShort(uni) });
+  return t("{year} курс, {faculty}, {uni}", { year: u.year, faculty: tx(u.faculty), uni: uniShort(uni) });
 }
 
 export function yearsOn(u) {
@@ -45,7 +46,8 @@ export function listingPage(main, id) {
   function render() {
     map?.dispose(); map = null;
     const me = store.me(), host = store.user(l.hostId), own = l.hostId === me.id;
-    const uni = uniById(currentUni());
+    const unis = currentUnis(), picked = new Set(isAllUnis(unis) ? [] : unis);
+    const near = nearestUni(l.approx, unisByIds(unis));
     const split = priceSplit(l);
     const compat = listingCompat(l, me, store.user);
     const reviews = store.reviewsFor(l.id).sort((a, b) => b.date.localeCompare(a.date));
@@ -54,7 +56,7 @@ export function listingPage(main, id) {
     const fav = store.isFav(l.id);
     const seeAddr = store.canSeeAddress(l);
     const residents = l.residents.map(store.user).filter(Boolean);
-    const first = host.name.split(" ")[0];
+    const first = nm(host.name).split(" ")[0];
     const nearSea = seaDistanceM(l.approx) <= 900;
     const genderBlocked = !own && l.genderPref !== "any" && me.gender && l.genderPref !== me.gender;
     const amen = l.amenities.map(k => AMENITIES[k] && `<li>${icon(AMENITIES[k][1], 20)}${t(AMENITIES[k][0])}</li>`).filter(Boolean);
@@ -68,7 +70,7 @@ export function listingPage(main, id) {
       <div class="lp-top">
         <nav class="crumbs" aria-label="${t("Път")}"><button class="icon-btn back-btn" id="back" aria-label="${t("Назад")}">${icon("arrow-left", 18)}</button>
           <a href="#/">${cityName()}</a>${icon("chevron-right", 14)}<span>${esc(districtName(l.district))}</span>${icon("chevron-right", 14)}<span>${t(l.type === "room" ? "Стаи" : "Цели жилища")}</span></nav>
-        <h1 class="lp-title">${esc(l.title)}</h1>
+        <h1 class="lp-title">${tx(l.title)}</h1>
         <div class="lp-meta"><div class="l">
           ${rs.count ? `<a href="#reviews" class="rating">${icon("star", 14, "star")} ${fmtRating(rs.overall)} <span class="muted">· ${plural(rs.count, "отзив", "отзива")}</span></a>` : `<span class="badge">${t("Нова обява")}</span>`}
           ${loved ? `<span class="badge">${icon("star", 12, "star")} ${t("Топ оценка")}</span>` : ""}
@@ -88,7 +90,7 @@ export function listingPage(main, id) {
             <div class="kicker">${t(TYPE_LABEL[l.type])}</div>
             <h2>${kind}</h2>
             <ul class="specs">${[l.rooms > 1 && plural(l.rooms, "стая", "стаи"), `${l.area} м²`, t("{n} етаж", { n: l.floor }), t("общо {who}", { who: peopleCount(l.occupants) }), l.amenities.includes("furnished") && t("обзаведено")].filter(Boolean).map(x => `<li>${x}</li>`).join("")}</ul>
-            <a class="hostline" href="#/u/${host.id}">${avatar(host, 44)}<div><span class="muted">${t("Публикувано от")}</span><b>${esc(host.name)}</b><span class="muted">${userLine(host)} · ${t("в делим от {t}", { t: yearsOn(host) })}</span></div>${icon("chevron-right", 18)}</a>
+            <a class="hostline" href="#/u/${host.id}">${avatar(host, 44)}<div><span class="muted">${t("Публикувано от")}</span><b>${esc(nm(host.name))}</b><span class="muted">${userLine(host)} · ${t("в делим от {t}", { t: yearsOn(host) })}</span></div>${icon("chevron-right", 18)}</a>
           </section>
 
           <section class="lp-sec"><h2>${t("Проверки")}</h2>
@@ -97,17 +99,17 @@ export function listingPage(main, id) {
               ${l.type === "room" ? (l.landlordConsent ? chk("ok", "shield-check", t("Хазяинът е съгласен"), t("Собственикът е потвърдил, че приема нов съквартирант."))
                 : chk("warn", "triangle-alert", t("Няма потвърждение от хазяина"), t("Преотдаването без съгласие на собственика е риск за договора. Поискай писмено съгласие, преди да се нанесеш."))) : chk("ok", "key-round", t("Договор директно със собственика"), host.role === "agency" ? t("Обявата е от агенция.") : t("Обявата е от хазяина."))}
               ${fair ? chk(isGoodDeal(fair) ? "ok" : fair.pct > 0.08 ? "warn" : "", fair.diff <= 0 ? "trending-down" : "trending-up", t("Цена спрямо района"), esc(fairLabel(fair, l.district)) + " · " + t("сравнено с {n} обяви", { n: fair.n })) : ""}
-              ${chk("", "bus", t("{n} мин до {uni}", { n: commuteMin(l.approx, uni), uni: uniShort(uni) }), t("Пеша или с градски транспорт, ориентировъчно."))}
+              ${chk("", "bus", t("{n} мин до {uni}", { n: near.min, uni: uniShort(near.uni) }), t("Пеша или с градски транспорт, ориентировъчно."))}
               ${nearSea ? chk("", "waves", t("Близо до морето"), t("Около {m} м до плажа.", { m: Math.round(seaDistanceM(l.approx) / 50) * 50 })) : ""}
             </ul></section>
 
-          <section class="lp-sec"><h2>${t("За жилището")}</h2><div class="desc">${nl2br(l.description)}</div></section>
+          <section class="lp-sec"><h2>${t("За жилището")}</h2>${txBlock(l.description)}</section>
 
           ${l.type === "room" ? `<section class="lp-sec"><h2>${t("Съквартиранти")}</h2>
             ${own ? `<p class="muted">${t("Това е твоята обява. Другите виждат тук теб и съвпадението си с теб.")}</p>` : ""}
             <div class="people">${residents.map(u => {
               const c = compat?.per.find(p => p.user.id === u.id);
-              return `<div class="person"><a href="#/u/${u.id}">${avatar(u, 56)}</a><div><a href="#/u/${u.id}" class="nm">${esc(u.name)}</a>
+              return `<div class="person"><a href="#/u/${u.id}">${avatar(u, 56)}</a><div><a href="#/u/${u.id}" class="nm">${esc(nm(u.name))}</a>
                 <div class="muted" style="font-size:14px">${userLine(u)}</div>
                 ${c ? `<div class="meter"><div class="bar ${c.score >= 80 ? "hi" : ""}"><i style="width:${c.score}%"></i></div><b>${c.score}%</b></div>
                 <ul class="why">${c.why.map(([k, txt]) => `<li class="${k}">${icon(k === "y" ? "check" : "triangle-alert", 16)}${txt}</li>`).join("")}</ul>` : ""}</div></div>`;
@@ -125,7 +127,7 @@ export function listingPage(main, id) {
             <div class="map-note">${icon(seeAddr ? "map-pin" : "lock", 18)}<span>${seeAddr ? (own ? t("Виждаш точния адрес, защото обявата е твоя. Другите виждат само кръга.") : t("Виждаш точния адрес, защото с домакина си споделихте контактите."))
               : t("Показваме зона от {m} м, а не точния адрес. Адресът се вижда, след като и двамата с {name} се съгласите да споделите контакти в чата.", { m: PRIVACY_RADIUS_M, name: esc(first) })}</span></div>
             <table class="commute-table"><caption class="sr">${t("Време до университетите")}</caption>
-              ${UNIVERSITIES.map(u => `<tr class="${u.id === uni.id ? "on" : ""}"><th scope="row">${uniShort(u)}</th><td>${esc(uniName(u))}</td><td>${t("{n} мин", { n: commuteMin(l.approx, u) })}</td></tr>`).join("")}</table>
+              ${UNIVERSITIES.map(u => `<tr class="${picked.has(u.id) || u.id === near.uni.id ? "on" : ""}"><th scope="row">${uniShort(u)}</th><td>${esc(uniName(u))}</td><td>${t("{n} мин", { n: commuteMin(l.approx, u) })}</td></tr>`).join("")}</table>
           </section>
 
           <section class="lp-sec" id="reviews"><h2>${t("Отзиви от съквартиранти")} ${rs.count ? `<span class="count">${rs.count}</span>` : ""}</h2>
@@ -175,7 +177,7 @@ export function listingPage(main, id) {
     // map: circle only, unless the viewer may see the address
     map = baseMap($("#lpMap"), { scrollWheelZoom: false, maxZoom: seeAddr ? 19 : 16 });
     map.setView([l.approx.lat, l.approx.lng], 15);
-    uniMarkers(map, uni.id);
+    uniMarkers(map, unis);
     L.circle([l.approx.lat, l.approx.lng], { radius: PRIVACY_RADIUS_M, color: "#1F5FA8", weight: 2, fillColor: "#1F5FA8", fillOpacity: .16 }).addTo(map);
     if (seeAddr) L.marker([l.exact.lat, l.exact.lng], { icon: L.divIcon({ className: "pin-wrap", iconSize: [0, 0], html: `<div class="pin-exact"></div>` }) }).addTo(map);
 
@@ -214,7 +216,7 @@ const chk = (cls, ic, title, text) => `<li class="${cls}">${icon(ic, 22)}<div><b
 function groupBox(g, l) {
   const members = store.groupMembers(g), n = members.length;
   const fits = n === l.occupants, budget = store.groupBudget(g), pp = priceSplit(l).perPerson;
-  return `<div class="grp-box"><div class="grp-head">${icon("users", 18)}<b>${esc(g.name)}</b><span class="muted">${peopleCount(n)}</span></div>
+  return `<div class="grp-box"><div class="grp-head">${icon("users", 18)}<b>${tx(g.name)}</b><span class="muted">${peopleCount(n)}</span></div>
     <div class="grp-avs">${members.map(u => avatar(u, 32)).join("")}</div>
     <ul class="checks compact">
       ${chk(fits ? "ok" : "warn", fits ? "check" : "triangle-alert", fits ? t("Жилището е точно за групата ви") : t("Жилището е за {a}, а групата ви е {b}", { a: peopleCount(l.occupants), b: peopleCount(n) }), "")}
@@ -231,7 +233,7 @@ function groupApplyDialog(l, g) {
     { n: members.length, names: members.map(u => u.name).join(", ") });
   const m = modal(`<h2>${t("Кандидатура на групата")}</h2>
     <div class="grp-avs" style="margin-bottom:12px">${members.map(u => avatar(u, 36)).join("")}</div>
-    <div class="field"><label for="gaText">${t("Съобщение до {name}", { name: esc(host.name) })}</label><textarea class="inp" id="gaText" maxlength="1000">${esc(text)}</textarea></div>
+    <div class="field"><label for="gaText">${t("Съобщение до {name}", { name: esc(nm(host.name)) })}</label><textarea class="inp" id="gaText" maxlength="1000">${esc(text)}</textarea></div>
     <p class="muted" style="font-size:13px">${t("Останалите от групата ще получат известие, че сте кандидатствали.")}</p>
     <div class="modal-foot"><button class="btn link" data-close>${t("Отказ")}</button><button class="btn dark" id="gaGo">${icon("send", 16)} ${t("Изпрати")}</button></div>`, { label: t("Кандидатура на групата") });
   $("#gaGo", m.el).onclick = () => {
@@ -285,8 +287,8 @@ function ownBox(l) {
 
 export function reviewHTML(r) {
   const a = store.user(r.authorId);
-  return `<div class="review"><a class="who" href="#/u/${a?.id}">${avatar(a, 44)}<span><b>${esc(a?.name || t("Бивш потребител"))}</b><span class="muted" style="font-size:13px">${a ? userLine(a) : ""}</span></span></a>
-    <div class="when">${stars(r.stars, 10)} · <b>${fmtMonthYear(r.date)}</b> · <span class="muted">${t("живя {t}", { t: fmtMonths(r.stayMonths) })}</span></div><p>${esc(r.text)}</p></div>`;
+  return `<div class="review"><a class="who" href="#/u/${a?.id}">${avatar(a, 44)}<span><b>${esc(a ? nm(a.name) : t("Бивш потребител"))}</b><span class="muted" style="font-size:13px">${a ? userLine(a) : ""}</span></span></a>
+    <div class="when">${stars(r.stars, 10)} · <b>${fmtMonthYear(r.date)}</b> · <span class="muted">${t("живя {t}", { t: fmtMonths(r.stayMonths) })}</span></div><p>${tx(r.text)}</p></div>`;
 }
 
 function photos(l, start) {
@@ -309,7 +311,7 @@ function reviewDialog(l, done) {
   const v = { stars: 0, cats: Object.fromEntries(Object.keys(REVIEW_CATS).map(k => [k, 0])), stayMonths: 12, text: "" };
   const starPick = (name, n) => `<div class="starpick" data-name="${name}" role="radiogroup" aria-label="${name === "stars" ? t("Обща оценка") : t(REVIEW_CATS[name])}">${[1, 2, 3, 4, 5].map(i =>
     `<button type="button" data-v="${i}" role="radio" aria-checked="${i === n}" aria-label="${i}">${icon("star", name === "stars" ? 30 : 20, i <= n ? "on" : "off")}</button>`).join("")}</div>`;
-  const m = modal(`<h2>${t("Отзив за {title}", { title: esc(l.title) })}</h2>
+  const m = modal(`<h2>${t("Отзив за {title}", { title: tx(l.title) })}</h2>
     <div class="legal" style="margin-top:0">${t("Демо: всеки може да пише. В истинския продукт отзив пишат само хора, живели в жилището, потвърдени от домакина.")}</div>
     <div class="field"><span class="lbl">${t("Обща оценка")}</span><div id="spMain">${starPick("stars", 0)}</div></div>
     <div class="cols-2">${Object.entries(REVIEW_CATS).map(([k, label]) => `<div class="field"><span class="lbl">${t(label)}</span><div data-wrap="${k}">${starPick(k, 0)}</div></div>`).join("")}</div>

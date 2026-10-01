@@ -2,8 +2,9 @@ import * as store from "./store.js";
 import { initPhotos, clearPhotos } from "./photos.js";
 import { icon } from "./icons.js";
 import { $, $$, esc, avatar, modal, toast, confirmDialog, go } from "./ui.js";
-import { S, saveUI, currentUni, changeLang } from "./state.js";
-import { UNIVERSITIES, uniShort, uniName } from "./data/places.js";
+import { S, saveUI, changeLang } from "./state.js";
+import { UNIVERSITIES, uniShort } from "./data/places.js";
+import { uniLabel, uniPickerDialog } from "./views/unipicker.js";
 import { DEFAULT_FILTERS } from "./logic.js";
 import { t, LANGS } from "./i18n.js";
 import { explore, filtersModal } from "./views/explore.js";
@@ -15,6 +16,7 @@ import { inboxPage } from "./views/inbox.js";
 import { hostingPage, listingWizard } from "./views/host.js";
 import { notificationsPage } from "./views/notifications.js";
 import { groupPage } from "./views/group.js";
+import { nm, bindTranslations } from "./translate.js";
 
 const ROUTES = [
   [/^\/?$/, explore],
@@ -82,16 +84,15 @@ function renderHeader(path, minimal) {
       <div style="margin-left:auto"><a class="btn ghost sm" href="#/host">${t("Изход")}</a></div></div>`;
     return;
   }
-  const uni = UNIVERSITIES.find(u => u.id === currentUni());
   hdr.innerHTML = `<div class="wrap-wide hdr-in">
     <a class="logo" href="#/" aria-label="${t("делим, начало")}">${logoMark()}<small>${t("Варна")}</small></a>
     <form class="find" id="sbar" role="search">
       <label class="sr" for="sbQ">${t("Търси")}</label>${icon("search", 18)}
       <input id="sbQ" name="q" placeholder="${t("Квартал, университет или дума")}" value="${esc(f.q)}" autocomplete="off" enterkeyhint="search">
     </form>
-    <label class="uni-chip" title="${t("Времето за път се смята до този университет")}">${icon("graduation-cap", 18)}<span>${t("Уча в")}</span>
-      <select id="sbU" aria-label="${t("Университет")}">${UNIVERSITIES.map(u => `<option value="${u.id}" ${u.id === uni.id ? "selected" : ""}>${uniShort(u)}</option>`).join("")}</select>${icon("chevron-down", 14)}</label>
-    <button class="m-search" id="mSearch">${icon("search", 18)}<span><b>${f.q ? esc(f.q) : t("Търси във Варна")}</b><small>${t("Уча в")} ${uniShort(uni)} · ${f.maxPrice ? t("до €{n}", { n: f.maxPrice }) : t("всеки бюджет")}</small></span><span class="fb" aria-label="${t("Филтри")}">${icon("sliders-horizontal", 16)}</span></button>
+    <button class="uni-chip" id="uniBtn" title="${t("Времето за път се смята до най-близкия от избраните университети")}">${icon("graduation-cap", 18)}<span>${t("Уча в")}</span>
+      <b>${esc(uniLabel())}</b>${icon("chevron-down", 14)}</button>
+    <button class="m-search" id="mSearch">${icon("search", 18)}<span><b>${f.q ? esc(f.q) : t("Търси във Варна")}</b><small>${t("Уча в")} ${esc(uniLabel())} · ${f.maxPrice ? t("до €{n}", { n: f.maxPrice }) : t("всеки бюджет")}</small></span><span class="fb" aria-label="${t("Филтри")}">${icon("sliders-horizontal", 16)}</span></button>
     <a class="bell m-bell" href="#/notifications" aria-label="${t("Известия")}">${bellHTML()}</a>
     <div class="hdr-right">
       <a class="nav-link" href="#/people">${t("Съквартиранти")}</a>
@@ -101,11 +102,11 @@ function renderHeader(path, minimal) {
     </div></div>`;
   const submit = e => {
     e?.preventDefault();
-    S.filters.q = $("#sbQ").value.trim(); S.uniId = $("#sbU").value; saveUI();
+    S.filters.q = $("#sbQ").value.trim(); saveUI();
     if (location.hash.replace(/^#/, "") !== "/" && location.hash !== "") go("/"); else route();
   };
   $("#sbar").onsubmit = submit;
-  $("#sbU").onchange = submit;
+  $("#uniBtn").onclick = () => uniPickerDialog(() => route());
   $("#menuBtn").onclick = e => { e.stopPropagation(); toggleMenu(); };
   $("#mSearch").onclick = e => {
     if (e.target.closest(".fb")) { filtersModal(() => { if (current?.path !== "/") go("/"); else route(); }); return; }
@@ -150,7 +151,7 @@ function toggleMenu() {
   $("#ddReset", dd).onclick = async () => {
     dd.remove();
     if (!await confirmDialog(t("Всички промени, обяви, снимки и съобщения ще се изтрият. Продължаваме ли?"), t("Върни началните"), true)) return;
-    await clearPhotos(); store.resetDemo(); S.filters = { ...DEFAULT_FILTERS }; S.uniId = ""; saveUI();
+    await clearPhotos(); store.resetDemo(); S.filters = { ...DEFAULT_FILTERS }; S.uniIds = null; saveUI();
     toast(t("Демо данните са възстановени")); go("/"); route();
   };
 }
@@ -159,23 +160,24 @@ function switchUserDialog() {
   const all = store.users();
   const m = modal(`<h2>${t("Влез като")}</h2><p class="muted" style="margin-top:-8px">${t("Демо: така виждаш и другата страна на разговора.")}</p>
     <div style="display:grid;gap:4px">${all.map(u => `<button class="thr" data-id="${u.id}" style="padding:10px 8px;border-radius:10px">${avatar(u, 40)}
-      <span style="text-align:left"><b>${esc(u.name)}</b><br><small class="muted">${u.role === "student" ? `${uniShort(UNIVERSITIES.find(x => x.id === u.university))} · ${u.seeking ? t("търси стая") : store.listingsOf(u.id).length ? t("има обява") : t("съквартирант")}` : u.role === "agency" ? t("агенция") : t("хазяин")}</small></span>
+      <span style="text-align:left"><b>${esc(nm(u.name))}</b><br><small class="muted">${u.role === "student" ? `${uniShort(UNIVERSITIES.find(x => x.id === u.university))} · ${u.seeking ? t("търси стая") : store.listingsOf(u.id).length ? t("има обява") : t("съквартирант")}` : u.role === "agency" ? t("агенция") : t("хазяин")}</small></span>
       ${u.id === store.me().id ? icon("check", 18) : ""}</button>`).join("")}</div>`, { label: t("Смени потребител") });
   m.el.addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (!b) return;
-    store.switchUser(b.dataset.id); S.uniId = ""; saveUI(); m.close(); toast(t("Влезе като {name}", { name: store.me().name })); route(); });
+    store.switchUser(b.dataset.id); S.uniIds = null; saveUI(); m.close(); toast(t("Влезе като {name}", { name: nm(store.me().name) })); route(); });
 }
 
 function mobileSearch() {
   const f = S.filters;
   const m = modal(`<h2>${t("Търсене")}</h2>
     <div class="field"><label for="msQ">${t("Къде")}</label><input class="inp" id="msQ" value="${esc(f.q)}" placeholder="${t("Квартал, университет или дума")}" autofocus></div>
-    <div class="field"><label for="msU">${t("Университет")}</label><select class="inp" id="msU">${UNIVERSITIES.map(u => `<option value="${u.id}" ${u.id === currentUni() ? "selected" : ""}>${uniShort(u)} — ${esc(uniName(u))}</option>`).join("")}</select></div>
+    <div class="field"><span class="lbl">${t("Университети")}</span><button type="button" class="inp uni-pick-btn" id="msU">${icon("graduation-cap", 18)} <span>${esc(uniLabel())}</span>${icon("chevron-down", 14)}</button></div>
     <div class="field"><label for="msB">${t("Бюджет на човек, със сметките")}</label><select class="inp" id="msB">${[0, 250, 300, 350, 400, 500].map(v => `<option value="${v}" ${v === f.maxPrice ? "selected" : ""}>${v ? t("до €{n}", { n: v }) : t("всеки бюджет")}</option>`).join("")}</select></div>
     <div class="field"><label for="msL">${t("Език")}</label><select class="inp" id="msL">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === S.lang ? "selected" : ""}>${v}</option>`).join("")}</select></div>
     <div class="modal-foot"><button class="btn link" id="msClear">${t("Изчисти")}</button><button class="btn primary" id="msGo">${icon("search", 18)} ${t("Търси")}</button></div>`, { label: t("Търсене") });
+  $("#msU", m.el).onclick = () => uniPickerDialog(() => { $("#msU span", m.el).textContent = uniLabel(); });
   $("#msClear", m.el).onclick = () => { $("#msQ", m.el).value = ""; $("#msB", m.el).value = "0"; };
   $("#msGo", m.el).onclick = () => {
-    S.filters.q = $("#msQ", m.el).value.trim(); S.filters.maxPrice = +$("#msB", m.el).value; S.uniId = $("#msU", m.el).value; saveUI();
+    S.filters.q = $("#msQ", m.el).value.trim(); S.filters.maxPrice = +$("#msB", m.el).value; saveUI();
     changeLang($("#msL", m.el).value);
     m.close(); if (current?.path !== "/") go("/"); else route();
   };
@@ -206,6 +208,7 @@ async function boot() {
     current?.refresh?.();
   });
   window.addEventListener("hashchange", route);
+  bindTranslations();
   window.addEventListener("delim:rerender", () => { if (current) current.path = null; route(); });
   route();
   const n = store.startupNotice();

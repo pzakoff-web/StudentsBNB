@@ -4,6 +4,8 @@ import { getLang } from "../i18n.js";
 // Student e-mail domains are best-effort and must be confirmed with each university before launch.
 
 export const VARNA_CENTER = { lat: 43.2141, lng: 27.9147 };
+// Maps never leave greater Varna (incl. Аспарухово, Виница, Златни пясъци); keeps them from opening on the world view.
+export const VARNA_BOUNDS = [[43.10, 27.72], [43.32, 28.12]];
 
 export const UNIVERSITIES = [
   { id: "IU", short: "ИУ", shortLat: "UE", nameEn: "University of Economics – Varna", nameDe: "Wirtschaftsuniversität Varna", name: "Икономически университет – Варна", address: "бул. „Княз Борис I“ 77",
@@ -22,6 +24,9 @@ export const UNIVERSITIES = [
 
 export const uniById = id => UNIVERSITIES.find(u => u.id === id) || null;
 export const uniShort = u => !u ? "" : getLang() === "bg" ? u.short : u.shortLat;
+// An empty list means "all universities".
+export const unisByIds = ids => (ids?.length ? UNIVERSITIES.filter(u => ids.includes(u.id)) : UNIVERSITIES);
+export const isAllUnis = ids => !ids?.length || ids.length >= UNIVERSITIES.length;
 export const uniName = u => !u ? "" : ({ en: u.nameEn, de: u.nameDe }[getLang()] || u.name);
 
 // Rough centroids of residential areas, used for seed data and for naming a picked point.

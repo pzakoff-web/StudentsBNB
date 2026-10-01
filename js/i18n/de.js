@@ -70,7 +70,6 @@ export default {
  "Време до {uni}": "Weg zur {uni}",
  "Време до университетите": "Wegzeit zu den Universitäten",
  "Времето е до {uni} пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.": "Die Zeiten gelten zur {uni} zu Fuß oder mit dem Stadtbus, ungefähr. Preise pro Person inkl. Nebenkosten.",
- "Времето за път се смята до този университет": "Die Wegzeit wird zu dieser Universität berechnet",
  "Всички": "Alle",
  "Всички жилища": "Alle Unterkünfte",
  "Всички жилища за групата на картата": "Alle Wohnungen für die Gruppe auf der Karte",
@@ -666,5 +665,18 @@ export default {
  "€{d} над средното {where} (€{m})": "€{d} über dem Durchschnitt {where} (€{m})",
  "€{d} под средното {where} (€{m})": "€{d} unter dem Durchschnitt {where} (€{m})",
  "€{n} на човек": "€{n} pro Person",
- "€{n}/човек": "€{n}/Person"
+ "€{n}/човек": "€{n}/Person",
+ "Време до най-близкия избран университет": "Zeit zur nächsten ausgewählten Uni",
+ "Време за път до": "Fahrzeit zu",
+ "Времето е до най-близкия от {list} пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.": "Die Zeit gilt bis zur nächsten von {list}, zu Fuß oder mit dem Bus, ungefähr. Preise pro Person inkl. Nebenkosten.",
+ "Времето за път се смята до най-близкия от избраните университети": "Die Fahrzeit wird zur nächsten ausgewählten Uni berechnet",
+ "Готово": "Fertig",
+ "Избери университетите, които те интересуват. Показваме времето до най-близкия от тях.": "Wähle die Unis, die dich interessieren. Wir zeigen die Zeit zur nächsten.",
+ "Най-близо до университет": "Am nächsten zu einer Uni",
+ "Промени": "Ändern",
+ "Университети": "Universitäten",
+ "всички университети": "alle Universitäten",
+ "Покажи оригинала": "Original anzeigen",
+ "Покажи превода": "Übersetzung anzeigen",
+ "Преведено автоматично": "Automatisch übersetzt"
 };

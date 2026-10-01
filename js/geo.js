@@ -37,6 +37,13 @@ export function commuteMin(a, b) {
   return Math.max(2, Math.round(Math.min(walk, bus)));
 }
 
+// Closest of several universities by travel time.
+export function nearestUni(p, unis) {
+  let best = null;
+  for (const u of unis) { const m = commuteMin(p, u); if (!best || m < best.min) best = { uni: u, min: m }; }
+  return best;
+}
+
 export function nearestDistrict(p) {
   let best = DISTRICTS[0], bd = Infinity;
   for (const d of DISTRICTS) { const m = distanceM(p, d); if (m < bd) { bd = m; best = d; } }

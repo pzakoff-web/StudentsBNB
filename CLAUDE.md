@@ -15,13 +15,14 @@ The user (Petar Zakov) writes in Bulgarian; reply in Bulgarian unless told other
 - `js/geo.js` distance, 100 m privacy circle, commute estimate, Nominatim geocoding.
 - `js/store.js` persistence and all mutations; `js/photos.js` uploads (IndexedDB) and generated room illustrations for seed listings.
 - `js/views/*` screens: explore (search + map), listing, profile/edit, people (seekers), inbox, host (my listings + 8-step wizard), notifications (+ saved searches), group, share (Facebook card).
-- `js/i18n.js` + `js/i18n/{en,de}.js`: `t("bulgarian text", {vars})`. Bulgarian source strings are the keys. Every new UI string must go through `t()` (or a label table listed in `scripts/i18n-keys.py`) and get EN + DE entries; `tests/i18n.test.js` fails otherwise. User content (titles, bios, reviews) is not translated. Default language is Bulgarian regardless of the phone's locale.
+- `js/i18n.js` + `js/i18n/{en,de}.js`: `t("bulgarian text", {vars})`. Bulgarian source strings are the keys. Every new UI string must go through `t()` (or a label table listed in `scripts/i18n-keys.py`) and get EN + DE entries; `tests/i18n.test.js` fails otherwise. User content is translated by `js/translate.js`: names are transliterated (official Streamlined System), demo content has ready EN/DE rows in `js/i18n/content.js` (`tests/translate.test.js` checks every seed text), anything else goes to MyMemory once and is cached in localStorage, with a "Покажи оригинала" switch. Render user text with `tx()` / `txBlock()` and names with `nm()`, never bare `esc()`. Production: DeepL/Google via the backend. Default language is Bulgarian regardless of the phone's locale.
 - Data schema is versioned (`DB_VERSION` in `js/store.js`). Changing the stored shape needs a step in `MIGRATIONS`, never a wipe. `SEED_VERSION` in `seed.js` is only for deliberate demo-data resets.
 
 ## Decisions taken in the prototype
 - Exact address is stored privately. Everyone else sees a 100 m circle whose centre is offset randomly **once** at save time (recomputing per view would let people average it back). The address unlocks only for the owner or after both sides agree to share phones in chat. The street address is excluded from search for the same reason.
+- Commute is measured to the nearest of the universities the user picked (header "Уча в": one, several or all; `S.uniIds`, `null` = own university, `[]` = all).
 - Commute = faster of walking and bus (9 min walk/wait + road distance at 22 km/h). Placeholder until real GTFS data.
-- Map tiles: OpenStreetMap standard tiles, CSS-muted to look like Airbnb. OK for a prototype only; production needs a keyed provider. CARTO now requires an API key.
+- Map tiles: OpenStreetMap standard tiles, CSS-muted to look like Airbnb. OK for a prototype only; production needs a keyed provider. CARTO now requires an API key. Maps are locked to greater Varna (`VARNA_BOUNDS`, minZoom 11) and fit only when visible, so they never open on the world view.
 - Visual identity is deliberately our own, not Airbnb's (the user asked to avoid trade-dress risk): no coral red, no segmented search pill, no icon category row, no 1+4 photo grid, no "Guest favourite" laurels, no copied section titles. Keep it that way.
 - Demo-only shortcuts, all labelled in the UI: auto-reply in chat, auto-accept of phone sharing and group invites, e-mail code shown in a toast, anyone can write a review, "Влез като" user switcher, notifications only in-app (no e-mail).
 - Fair price: per-person price vs the median of the same listing type in the same district (≥3 listings) or else the city; "Изгодна" at ≥8% below.
@@ -36,7 +37,7 @@ A student has a 2-bedroom flat. His flatmate graduated, so one bedroom is free. 
 1. **Two listing types:** `room` (a student with a free room seeks a flatmate; the main case) and `whole` (a landlord or agency lists a whole flat; students apply alone or as a group).
 2. **Price is always per person, including utilities.** Users enter totals and the system computes the share. Pins and list rows show this number.
 3. **Airbnb-style map.** Pins are labelled with the per-person price. Pins with ≥80% compatibility are highlighted.
-4. **Commute time to a selected university**, not km distance. Varna universities: ИУ, МУ, ТУ, ВСУ, ВВМУ, ВУМ. Production needs real transit routing.
+4. **Commute time to the nearest selected university (one, several or all)**, not km distance. Varna universities: ИУ, МУ, ТУ, ВСУ, ВВМУ, ВУМ. Production needs real transit routing.
 5. **Compatibility quiz:** gender, smoking at home, sleep (early/late), cleanliness 1–3, guests 1–3. The score starts at 100. Penalties: smoking mismatch −25, sleep mismatch −15, −12 per cleanliness step, −9 per guests step. The floor is 20. The UI shows the reasons as ✓/! lines. The weights are placeholders.
 6. **Filters:** listing type, gender (listing pref m/f/any vs user gender), max price per person, max commute minutes, min duration.
 7. **Trust & safety:**

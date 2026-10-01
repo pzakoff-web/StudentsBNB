@@ -8,6 +8,7 @@ import { S, changeLang } from "../state.js";
 import { t, LANGS } from "../i18n.js";
 import { userLine, yearsOn, reviewHTML } from "./listing.js";
 import { cardHTML, bindCards, rowFor } from "./card.js";
+import { tx, txBlock, nm } from "../translate.js";
 
 const SLEEP = { early: ["Лягам рано", "sun"], late: ["Лягам късно", "moon"] };
 const CLEAN = ["", "Спокойно към реда", "Нормално подреден/а", "Много подреден/а"];
@@ -33,7 +34,7 @@ export function profilePage(main, id) {
   const livesIn = store.listings().filter(l => l.residents.includes(u.id) && l.hostId !== u.id);
   const uni = uniById(u.university);
   const c = !mine && u.role === "student" ? compatWith(me, u) : null;
-  const first = u.name.split(" ")[0];
+  const first = nm(u.name).split(" ")[0];
   const myGroup = store.groupOf();
   const theirGroup = store.groupOf(u.id);
   const canInvite = !mine && u.seeking && myGroup && !myGroup.members.some(m => m.userId === u.id);
@@ -43,8 +44,8 @@ export function profilePage(main, id) {
       <div class="idcard ${u.role}">
         <div class="idcard-band">${icon(u.role === "student" ? "graduation-cap" : "key-round", 16)}<span>${u.role === "student" ? `${t("Студент")} · ${esc(uniShort(uni))}` : u.role === "agency" ? t("Агенция") : t("Хазяин")}</span><span class="idcard-no">№ ${esc(u.id.toUpperCase())}</span></div>
         <div class="idcard-body">${avatar(u, 88)}
-          <div><h1>${esc(u.name)}</h1>
-            <p>${u.role === "student" ? `${esc(u.faculty)}<br>${t("{n} курс", { n: u.year })}` : esc((u.languages || []).map(x => t(x)).join(", "))}</p>
+          <div><h1>${esc(nm(u.name))}</h1>
+            <p>${u.role === "student" ? `${tx(u.faculty)}<br>${t("{n} курс", { n: u.year })}` : esc((u.languages || []).map(x => t(x)).join(", "))}</p>
             <p class="muted">${t("В делим от {t}", { t: yearsOn(u) })}</p>
             ${u.emailVerified || u.idVerified ? `<span class="stamp">${t("Потвърден")}</span>` : ""}</div></div>
         <dl class="idcard-stats"><div><dt>${t("Отзиви")}</dt><dd>${rs.count}</dd></div><div><dt>${t("Оценка")}</dt><dd>${rs.count ? fmtRating(rs.overall) : "—"}</dd></div><div><dt>${t("Обяви")}</dt><dd>${ls.length}</dd></div></dl>
@@ -59,26 +60,26 @@ export function profilePage(main, id) {
       ${mine ? `<div class="pverify"><h3>${t("Настройки")}</h3>
         <div class="field" style="margin:0"><label for="pLang">${icon("globe", 16)} ${t("Език на сайта")}</label>
           <select class="inp" id="pLang">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === S.lang ? "selected" : ""}>${v}</option>`).join("")}</select></div>
-        <a class="btn ghost full" href="#/group" style="margin-top:12px">${icon("users", 16)} ${myGroup ? esc(myGroup.name) : t("Моята група")}</a>
+        <a class="btn ghost full" href="#/group" style="margin-top:12px">${icon("users", 16)} ${myGroup ? tx(myGroup.name) : t("Моята група")}</a>
         <a class="btn ghost full" href="#/notifications" style="margin-top:8px">${icon("bell", 16)} ${t("Известия и запазени търсения")}</a></div>` : ""}
     </div>
     <div class="pmain">
       <h2>${t("За {name}", { name: esc(first) })}</h2>
       <div class="pfacts">
         ${uni ? `<div>${icon("graduation-cap", 22)}<span>${esc(uniName(uni))}</span></div>` : ""}
-        ${u.faculty ? `<div>${icon("book-open", 22)}<span>${esc(u.faculty)}, ${t("{n} курс", { n: u.year })}</span></div>` : ""}
+        ${u.faculty ? `<div>${icon("book-open", 22)}<span>${tx(u.faculty)}, ${t("{n} курс", { n: u.year })}</span></div>` : ""}
         ${u.birthYear ? `<div>${icon("calendar", 22)}<span>${t(u.gender === "f" ? "Родена {y} г." : "Роден {y} г.", { y: u.birthYear })}</span></div>` : ""}
         ${u.languages?.length ? `<div>${icon("languages", 22)}<span>${t("Говори {l}", { l: esc(u.languages.map(x => t(x)).join(", ")) })}</span></div>` : ""}
         ${u.seeking ? `<div>${icon("search", 22)}<span>${u.budget ? t("Търси стая до €{n} на месец", { n: u.budget }) : t("Търси стая")}</span></div>` : ""}
-        ${theirGroup ? `<div>${icon("users", 22)}<span>${t("В група „{group}“", { group: esc(theirGroup.name) })}</span></div>` : ""}
+        ${theirGroup ? `<div>${icon("users", 22)}<span>${t("В група „{group}“", { group: tx(theirGroup.name) })}</span></div>` : ""}
       </div>
-      <div class="desc">${nl2br(u.bio || (mine ? t("Още нямаш описание. Добави няколко думи за себе си — помага да те харесат.") : ""))}</div>
+      ${u.bio ? txBlock(u.bio) : `<div class="desc">${mine ? t("Още нямаш описание. Добави няколко думи за себе си — помага да те харесат.") : ""}</div>`}
       ${u.role === "student" ? `<div class="psec" style="margin-top:28px"><h3>${t("Начин на живот")}</h3>${lifestyleChips(u)}
         ${c ? `<div style="margin-top:22px;max-width:460px"><b>${t("Съвпадение с теб")}</b><div class="meter"><div class="bar ${c.score >= 80 ? "hi" : ""}"><i style="width:${c.score}%"></i></div><b>${c.score}%</b></div>
           <ul class="why">${c.why.map(([k, txt]) => `<li class="${k}">${icon(k === "y" ? "check" : "triangle-alert", 16)}${txt}</li>`).join("")}</ul></div>` : ""}
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
         ${!mine && u.seeking ? `<button class="btn dark" id="contact">${icon("message-circle", 16)} ${t("Пиши на {name}", { name: esc(first) })}</button>` : ""}
-        ${canInvite ? `<button class="btn yellow" id="invGrp">${icon("user-plus", 16)} ${t("Покани в „{group}“", { group: esc(myGroup.name) })}</button>` : ""}</div></div>` : ""}
+        ${canInvite ? `<button class="btn yellow" id="invGrp">${icon("user-plus", 16)} ${t("Покани в „{group}“", { group: tx(myGroup.name) })}</button>` : ""}</div></div>` : ""}
       ${ls.length ? `<div class="psec"><h3>${mine ? t("Твоите обяви") : t("Обяви на {name}", { name: esc(first) })}</h3><div class="hscroll" id="pls">${ls.map(l => cardHTML(rowFor(l))).join("")}</div></div>` : ""}
       ${livesIn.length ? `<div class="psec"><h3>${t("Живее в")}</h3><div class="hscroll" id="pli">${livesIn.map(l => cardHTML(rowFor(l))).join("")}</div></div>` : ""}
       <div class="psec"><h3>${rs.count ? `${icon("star", 20, "star")} ${fmtRating(rs.overall)} · ${plural(rs.count, "отзив", "отзива")}` : t("Още няма отзиви")}</h3>

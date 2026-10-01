@@ -2,6 +2,7 @@ import { icon } from "./icons.js";
 import { photoSrc } from "./photos.js";
 import { fmtRating } from "./logic.js";
 import { t, locale } from "./i18n.js";
+import { nm } from "./translate.js";
 
 export const go = path => { location.hash = "#" + path; };
 export const $ = (s, r = document) => r.querySelector(s);
@@ -18,7 +19,7 @@ export function avatar(u, size = 40) {
   const src = photoSrc(u.avatar);
   return src
     ? `<img class="av" src="${src}" alt="" width="${size}" height="${size}" style="width:${size}px;height:${size}px">`
-    : `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px;background:hsl(${u.hue} 45% 42%)" aria-hidden="true">${esc(initials(u.name))}</span>`;
+    : `<span class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px;background:hsl(${u.hue} 45% 42%)" aria-hidden="true">${esc(initials(nm(u.name)))}</span>`;
 }
 
 export function starLine(r, { count = true, cls = "" } = {}) {

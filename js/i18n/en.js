@@ -70,7 +70,6 @@ export default {
  "Време до {uni}": "Time to {uni}",
  "Време до университетите": "Travel time to the universities",
  "Времето е до {uni} пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.": "Times are to {uni} on foot or by city bus, approximate. Prices are per person, incl. bills.",
- "Времето за път се смята до този университет": "Travel time is calculated to this university",
  "Всички": "All",
  "Всички жилища": "All places",
  "Всички жилища за групата на картата": "All places for the group on the map",
@@ -666,5 +665,18 @@ export default {
  "€{d} над средното {where} (€{m})": "€{d} above the average {where} (€{m})",
  "€{d} под средното {where} (€{m})": "€{d} below the average {where} (€{m})",
  "€{n} на човек": "€{n} per person",
- "€{n}/човек": "€{n}/person"
+ "€{n}/човек": "€{n}/person",
+ "Време до най-близкия избран университет": "Time to the nearest selected university",
+ "Време за път до": "Commute to",
+ "Времето е до най-близкия от {list} пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.": "Time is to the nearest of {list}, on foot or by public transport, approximate. Prices are per person, incl. bills.",
+ "Времето за път се смята до най-близкия от избраните университети": "Commute time is calculated to the nearest selected university",
+ "Готово": "Done",
+ "Избери университетите, които те интересуват. Показваме времето до най-близкия от тях.": "Pick the universities you care about. We show the time to the nearest one.",
+ "Най-близо до университет": "Closest to a university",
+ "Промени": "Change",
+ "Университети": "Universities",
+ "всички университети": "all universities",
+ "Покажи оригинала": "Show original",
+ "Покажи превода": "Show translation",
+ "Преведено автоматично": "Translated automatically"
 };
