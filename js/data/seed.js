@@ -178,6 +178,9 @@ const LISTING_REVIEWS = [
 const DAY = 864e5;
 const iso = d => new Date(d).toISOString().slice(0, 10);
 
+// Bump when the demo content changes, so returning visitors get the new demo data.
+export const SEED_VERSION = 2;
+
 export function buildSeed(now = new Date("2026-09-29T12:00:00Z")) {
   const r = rng(20260929);
   const pick = a => a[Math.floor(r() * a.length)];
@@ -272,5 +275,16 @@ export function buildSeed(now = new Date("2026-09-29T12:00:00Z")) {
     ],
   }];
 
-  return { version: 1, currentUserId: me.id, users, listings, reviews, threads };
+  me.budget = 350;
+  const byName = n => users.find(u => u.name === n);
+  const savedSearches = [{ id: "s1", userId: me.id, name: "Стаи до €350 до ИУ", uniId: "IU", createdAt: new Date(t0 - 5 * DAY).toISOString(),
+    filters: { q: "", category: "all", type: "room", minPrice: 0, maxPrice: 350, maxCommute: 0, stay: 0, moveIn: "", amenities: [],
+      verifiedOnly: false, consentOnly: false, minRating: 0, showAllGenders: false, sort: "recommended" } }];
+  const notifications = [{ id: "n1", userId: me.id, kind: "match", listingId: "l1", searchId: "s1", params: { search: savedSearches[0].name },
+    ts: listings[0].createdAt, read: false }];
+  const trio = ["Мирослав Ганчев", "Живко Райков", "Полина Добрева"].map(byName);
+  const groups = [{ id: "g1", name: "Тримата от ТУ", ownerId: trio[0].id, createdAt: new Date(t0 - 4 * DAY).toISOString(),
+    members: trio.map(u => ({ userId: u.id, status: "accepted" })) }];
+
+  return { version: 2, seedVersion: SEED_VERSION, currentUserId: me.id, users, listings, reviews, threads, savedSearches, notifications, groups };
 }

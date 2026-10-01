@@ -1,10 +1,11 @@
 import * as store from "../store.js";
 import { icon } from "../icons.js";
-import { $, $$, esc, modal, starLine } from "../ui.js";
+import { $, $$, esc, modal, starLine, toast } from "../ui.js";
 import { search, CATEGORIES, AMENITIES, DEFAULT_FILTERS, plural } from "../logic.js";
-import { UNIVERSITIES, uniById, VARNA_CENTER } from "../data/places.js";
+import { UNIVERSITIES, uniById, uniShort, uniName, districtName, cityName, VARNA_CENTER } from "../data/places.js";
 import { PRIVACY_RADIUS_M } from "../geo.js";
-import { S, saveUI, currentUni, activeFilterCount } from "../state.js";
+import { S, saveUI, currentUni, activeFilterCount, changeLang } from "../state.js";
+import { t, LANGS } from "../i18n.js";
 import { cardHTML, bindCards, carousel, pillFor, saveBtn } from "./card.js";
 
 // Standard OpenStreetMap tiles: fine for a prototype under the OSM tile usage policy.
@@ -26,35 +27,57 @@ export function baseMap(el, opts = {}) {
 
 export function uniMarkers(map, activeId) {
   return UNIVERSITIES.map(u => L.marker([u.lat, u.lng], {
-    icon: L.divIcon({ className: "pin-wrap", iconSize: [0, 0], html: `<div class="uni-pin ${u.id === activeId ? "on" : ""}" title="${esc(u.name)}">${icon("graduation-cap", 12)}${u.short}</div>` }),
+    icon: L.divIcon({ className: "pin-wrap", iconSize: [0, 0], html: `<div class="uni-pin ${u.id === activeId ? "on" : ""}" title="${esc(uniName(u))}">${icon("graduation-cap", 12)}${uniShort(u)}</div>` }),
     keyboard: false, zIndexOffset: -100,
-  }).bindTooltip(u.name, { direction: "top", offset: [0, -12] }).addTo(map));
+  }).bindTooltip(esc(uniName(u)), { direction: "top", offset: [0, -12] }).addTo(map));
 }
+
+// Short human name for a set of filters, e.g. "Стаи · до €350 · ИУ".
+export function describeSearch(f, uniId) {
+  const parts = [];
+  parts.push(f.type === "room" ? t("Стаи") : f.type === "whole" ? t("Цели жилища") : t("Всички жилища"));
+  if (f.category && f.category !== "all" && !["room", "whole"].includes(f.category)) parts.push(t(CATEGORIES.find(c => c.id === f.category)?.label || ""));
+  if (f.q) parts.push(`„${f.q}“`);
+  if (f.maxPrice) parts.push(t("до €{n}", { n: f.maxPrice }));
+  if (f.maxCommute) parts.push(t("до {n} мин", { n: f.maxCommute }));
+  parts.push(uniShort(uniById(uniId)));
+  return parts.filter(Boolean).join(" · ");
+}
+
+const sameSearch = (a, b) => JSON.stringify({ ...a, sort: "" }) === JSON.stringify({ ...b, sort: "" });
 
 export function explore(main) {
   const f = S.filters;
   const uni = uniById(currentUni());
+  const grp = store.groupOf();
+  const gsize = grp ? store.groupMembers(grp).length : 0;
+  if (f.category === "group" && gsize < 2) f.category = "all";
+  const cats = CATEGORIES.filter(c => c.id !== "group" || gsize >= 2);
   main.innerHTML = `
     <div class="cats" id="cats"><div class="wrap-wide cats-in">
-      <button class="filter-btn" id="fBtn">${icon("sliders-horizontal", 16)} Филтри ${activeFilterCount() ? `<span class="n">${activeFilterCount()}</span>` : ""}</button>
-      <div class="cat-scroll" role="toolbar" aria-label="Бързи филтри">
-        ${f.q ? `<button class="cat q" id="clearQ" aria-label="Махни търсенето „${esc(f.q)}“">„${esc(f.q)}“ ${icon("x", 14)}</button>` : ""}
-        ${CATEGORIES.map(c => `<button class="cat" data-cat="${c.id}" aria-pressed="${f.category === c.id}">${c.label}</button>`).join("")}</div>
+      <button class="filter-btn" id="fBtn">${icon("sliders-horizontal", 16)} ${t("Филтри")} ${activeFilterCount() ? `<span class="n">${activeFilterCount()}</span>` : ""}</button>
+      <div class="cat-scroll" role="toolbar" aria-label="${t("Бързи филтри")}">
+        ${f.q ? `<button class="cat q" id="clearQ" aria-label="${esc(t("Махни търсенето „{q}“", { q: f.q }))}">„${esc(f.q)}“ ${icon("x", 14)}</button>` : ""}
+        ${cats.map(c => `<button class="cat" data-cat="${c.id}" aria-pressed="${f.category === c.id}">${c.id === "group" ? icon("users", 14) + " " + t("За групата ни ({n})", { n: gsize }) : t(c.label)}</button>`).join("")}</div>
     </div></div>
     <div class="explore ${S.showMap ? "show-map" : ""}" id="exp">
       <section class="results" aria-live="polite">
         <div class="results-head"><h1 id="rCount"></h1>
-          <label class="sr" for="sortSel">Подреди</label>
-          <select id="sortSel">${[["recommended", "Препоръчани за теб"], ["price", "Най-ниска цена"], ["commute", "Най-близо до " + uni.short], ["rating", "Най-висок рейтинг"], ["newest", "Най-нови"]]
-            .map(([v, t]) => `<option value="${v}" ${f.sort === v ? "selected" : ""}>${t}</option>`).join("")}</select></div>
-        <p class="uni-note">${icon("bus", 16)}<span>Времето е до <b>${esc(uni.name)}</b> пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.</span>
-          <label class="check" style="padding:0;font-size:13px;margin-left:auto"><input type="checkbox" id="inBounds" ${S.inBounds ? "checked" : ""}> Само в района на картата</label></p>
+          <div class="results-tools"><button class="btn ghost sm" id="saveSearch">${icon("bell-plus", 16)} <span>${t("Запази търсенето")}</span></button>
+          <label class="sr" for="sortSel">${t("Подреди")}</label>
+          <select id="sortSel">${[["recommended", t("Препоръчани за теб")], ["price", t("Най-ниска цена")], ["commute", t("Най-близо до {uni}", { uni: uniShort(uni) })], ["rating", t("Най-висок рейтинг")], ["newest", t("Най-нови")]]
+            .map(([v, label]) => `<option value="${v}" ${f.sort === v ? "selected" : ""}>${label}</option>`).join("")}</select></div></div>
+        <p class="uni-note">${icon("bus", 16)}<span>${t("Времето е до {uni} пеша или с градски транспорт, ориентировъчно. Цените са на човек, със сметките.", { uni: `<b>${esc(uniName(uni))}</b>` })}</span>
+          <label class="check" style="padding:0;font-size:13px;margin-left:auto"><input type="checkbox" id="inBounds" ${S.inBounds ? "checked" : ""}> ${t("Само в района на картата")}</label></p>
+        ${f.category === "group" ? `<p class="group-note">${icon("users", 16)}<span>${t("Цели жилища точно за {n} души. Бюджетът на групата е до €{b} на човек.", { n: gsize, b: store.groupBudget(grp) || "—" })} <a href="#/group">${t("Към групата")}</a></span></p>` : ""}
         <div class="grid" id="grid"></div>
       </section>
-      <aside class="mapcol" aria-label="Карта"><div id="map"></div></aside>
-      <button class="map-toggle" id="mapTgl">${S.showMap ? `Списък ${icon("list", 16)}` : `Карта ${icon("map", 16)}`}</button>
+      <aside class="mapcol" aria-label="${t("Карта")}"><div id="map"></div></aside>
+      <button class="map-toggle" id="mapTgl">${S.showMap ? `${t("Списък")} ${icon("list", 16)}` : `${t("Карта")} ${icon("map", 16)}`}</button>
     </div>
-    <footer class="foot"><div class="wrap-wide"><span>© 2026 делим · прототип</span><span>Карта: © OpenStreetMap</span></div></footer>`;
+    <footer class="foot"><div class="wrap-wide"><span>© 2026 делим · ${t("прототип")}</span>
+      <label class="lang-pick">${icon("globe", 16)}<span class="sr">${t("Език")}</span><select id="langSel">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${k === S.lang ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+      <span>${t("Карта")}: © OpenStreetMap</span></div></footer>`;
 
   const grid = $("#grid");
   bindCards(grid);
@@ -67,17 +90,25 @@ export function explore(main) {
   const layer = L.layerGroup().addTo(map);
   let circle = null, markers = new Map(), rows = [], firstFit = true;
 
-  const ctx = () => ({ me: store.me(), uniId: currentUni(), userById: store.user, reviewsFor: store.reviewsFor });
+  const ctx = () => ({ me: store.me(), uniId: currentUni(), userById: store.user, reviewsFor: store.reviewsFor, groupSize: gsize });
+
+  function syncSaveBtn() {
+    const saved = store.savedSearches().some(s => s.uniId === currentUni() && sameSearch(s.filters, S.filters));
+    const b = $("#saveSearch");
+    b.disabled = saved;
+    b.querySelector("span").textContent = saved ? t("Търсенето е запазено") : t("Запази търсенето");
+  }
 
   function draw() {
     rows = search(store.listings(), S.filters, ctx());
     let shown = rows;
     if (S.inBounds && !firstFit) { const b = map.getBounds(); shown = rows.filter(r => b.contains([r.l.approx.lat, r.l.approx.lng])); }
-    $("#rCount").textContent = shown.length ? `${plural(shown.length, "обява", "обяви")} във Варна` : "Няма обяви";
+    $("#rCount").textContent = shown.length ? t("{n} във {city}", { n: plural(shown.length, "обява", "обяви"), city: cityName() }) : t("Няма обяви");
     grid.innerHTML = shown.length ? shown.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">
-      <h2>Нищо не отговаря на търсенето</h2><p>Опитай с по-голям бюджет, друга категория или по-малко филтри.</p>
-      <button class="btn dark" id="resetAll">Изчисти всички филтри</button></div>`;
+      <h2>${t("Нищо не отговаря на търсенето")}</h2><p>${t("Опитай с по-голям бюджет, друга категория или по-малко филтри. Или запази търсенето и ще ти кажем, когато се появи подходяща обява.")}</p>
+      <button class="btn dark" id="resetAll">${t("Изчисти всички филтри")}</button></div>`;
     $("#resetAll")?.addEventListener("click", () => { S.filters = { ...DEFAULT_FILTERS }; S.inBounds = false; saveUI(); rerender(); });
+    syncSaveBtn();
 
     layer.clearLayers(); markers.clear();
     for (const r of rows) {
@@ -112,8 +143,8 @@ export function explore(main) {
 
   const pinHTML = r => `<div class="pin ${r.compat?.score >= 80 ? "match" : ""} ${store.isFav(r.l.id) ? "fav" : ""}" data-pin="${r.l.id}">€${r.pp}</div>`;
   const popupHTML = r => `<a class="card" href="#/l/${r.l.id}" style="display:block"><div class="card-media">${carousel(r.l.photos)}${pillFor(r)}${saveBtn(r.l.id, 18)}</div>
-    <div class="card-body"><div class="card-price"><mark>€${r.pp}</mark><span>на човек · със сметките</span></div>
-    <h3>${esc(r.l.title)}</h3><div class="card-foot"><span>${esc(r.l.district)}</span>${starLine(r.rating)}</div></div></a>`;
+    <div class="card-body"><div class="card-price"><mark>€${r.pp}</mark><span>${t("на човек · със сметките")}</span></div>
+    <h3>${esc(r.l.title)}</h3><div class="card-foot"><span>${esc(districtName(r.l.district))}</span>${starLine(r.rating)}</div></div></a>`;
 
   function setSel(id, hover = false) {
     $$(".pin.sel, .pin.hover").forEach(p => p.classList.remove("sel", "hover"));
@@ -133,17 +164,18 @@ export function explore(main) {
   $("#cats").addEventListener("click", e => {
     const b = e.target.closest("[data-cat]"); if (!b) return;
     S.filters.category = b.dataset.cat; saveUI();
-    $$(".cat").forEach(x => x.setAttribute("aria-pressed", x === b));
-    firstFit = true; draw();
+    rerender();
   });
   $("#clearQ")?.addEventListener("click", () => { S.filters.q = ""; saveUI(); rerender(); });
   $("#sortSel").onchange = e => { S.filters.sort = e.target.value; saveUI(); draw(); };
   $("#inBounds").onchange = e => { S.inBounds = e.target.checked; draw(); };
   $("#fBtn").onclick = () => filtersModal(rerender);
+  $("#saveSearch").onclick = () => saveSearchDialog(syncSaveBtn);
+  $("#langSel").onchange = e => { changeLang(e.target.value); rerender(); };
   $("#mapTgl").onclick = () => {
     S.showMap = !S.showMap;
     $("#exp").classList.toggle("show-map", S.showMap);
-    $("#mapTgl").innerHTML = S.showMap ? `Списък ${icon("list", 16)}` : `Карта ${icon("map", 16)}`;
+    $("#mapTgl").innerHTML = S.showMap ? `${t("Списък")} ${icon("list", 16)}` : `${t("Карта")} ${icon("map", 16)}`;
     map.later(() => map.invalidateSize(), 50);
   };
   const onScroll = () => $("#cats")?.classList.toggle("shadow", window.scrollY > 4);
@@ -151,7 +183,20 @@ export function explore(main) {
 
   draw();
   map.later(() => map.invalidateSize(), 100);
-  return { cleanup: () => { window.removeEventListener("scroll", onScroll); map.dispose(); } };
+  return { cleanup: () => { window.removeEventListener("scroll", onScroll); map.dispose(); }, restoreScroll: true };
+}
+
+function saveSearchDialog(done) {
+  const name = describeSearch(S.filters, currentUni());
+  const m = modal(`<h2>${t("Запази търсенето")}</h2>
+    <p class="muted" style="margin-top:-6px">${t("Когато се появи нова обява, която отговаря, ще я видиш в Известия.")}</p>
+    <div class="field"><label for="ssName">${t("Име")}</label><input class="inp" id="ssName" maxlength="60" value="${esc(name)}"></div>
+    <p class="legal" style="margin-top:0">${t("Демо: известията са само в сайта. С бекенда ще пристигат и по имейл.")}</p>
+    <div class="modal-foot"><button class="btn link" data-close>${t("Отказ")}</button><button class="btn dark" id="ssGo">${icon("bell-plus", 16)} ${t("Запази")}</button></div>`, { cls: "small", label: t("Запази търсенето") });
+  $("#ssGo", m.el).onclick = () => {
+    store.saveSearch({ name: $("#ssName", m.el).value.trim() || name, filters: structuredClone(S.filters), uniId: currentUni() });
+    m.close(); toast(t("Ще те известим за нови обяви")); done();
+  };
 }
 
 // Re-runs the router, so the header, chips and map are rebuilt from the new filters.
@@ -166,41 +211,42 @@ export function filtersModal(onApply = rerender) {
   const hist = Array(bins).fill(0); prices.forEach(p => hist[Math.min(bins - 1, Math.max(0, Math.floor((p - lo) / (hi - lo) * bins)))]++);
   const hmax = Math.max(1, ...hist);
 
-  const m = modal(`<h2>Филтри</h2>
-    <div class="fsec"><h3>Вид жилище</h3><p>Стая при студент — влизаш при някой, който вече живее там. Цяло жилище — от хазяин или агенция.</p>
-      ${optsHTML("type", [["", "Всички"], ["room", "Стая при студент"], ["whole", "Цяло жилище"]], f.type)}</div>
-    <div class="fsec"><h3>Цена на човек</h3><p>На месец, наемът и сметките разделени на всички живеещи.</p>
+  const m = modal(`<h2>${t("Филтри")}</h2>
+    <div class="fsec"><h3>${t("Вид жилище")}</h3><p>${t("Стая при студент — влизаш при някой, който вече живее там. Цяло жилище — от хазяин или агенция.")}</p>
+      ${optsHTML("type", [["", t("Всички")], ["room", t("Стая при студент")], ["whole", t("Цяло жилище")]], f.type)}</div>
+    <div class="fsec"><h3>${t("Цена на човек")}</h3><p>${t("На месец, наемът и сметките разделени на всички живеещи.")}</p>
       <div class="hist" id="hist">${hist.map((n, i) => `<i style="height:${Math.max(4, n / hmax * 100)}%" data-b="${lo + (i + .5) * (hi - lo) / bins}"></i>`).join("")}</div>
-      <input type="range" id="fMax" min="${lo}" max="${hi}" step="10" value="${f.maxPrice || hi}" aria-label="Максимална цена">
-      <div class="range-vals"><span>от €${lo}</span><span id="fMaxV"></span></div></div>
-    <div class="fsec"><h3>Време до ${esc(uni.short)}</h3><p>С градски транспорт, ориентировъчно. Университетът се сменя от търсачката горе.</p>
-      <input type="range" id="fCom" min="10" max="60" step="5" value="${f.maxCommute || 60}" aria-label="Максимално време за път">
-      <div class="range-vals"><span>10 мин</span><span id="fComV"></span></div></div>
-    <div class="fsec"><h3>За колко време търсиш</h3><p>Скриваме обявите, които искат по-дълъг минимален срок.</p>
-      ${optsHTML("stay", [[0, "Без значение"], [6, "6 месеца"], [10, "Учебна година"], [12, "1 година"], [24, "2+ години"]], f.stay)}</div>
-    <div class="fsec"><h3>Нанасяне до</h3><p>Показва жилищата, свободни до тази дата.</p>
+      <input type="range" id="fMax" min="${lo}" max="${hi}" step="10" value="${f.maxPrice || hi}" aria-label="${t("Максимална цена")}">
+      <div class="range-vals"><span>${t("от €{n}", { n: lo })}</span><span id="fMaxV"></span></div></div>
+    <div class="fsec"><h3>${t("Време до {uni}", { uni: esc(uniShort(uni)) })}</h3><p>${t("Пеша или с градски транспорт, ориентировъчно. Университетът се сменя от търсачката горе.")}</p>
+      <input type="range" id="fCom" min="10" max="60" step="5" value="${f.maxCommute || 60}" aria-label="${t("Максимално време за път")}">
+      <div class="range-vals"><span>${t("{n} мин", { n: 10 })}</span><span id="fComV"></span></div></div>
+    <div class="fsec"><h3>${t("За колко време търсиш")}</h3><p>${t("Скриваме обявите, които искат по-дълъг минимален срок.")}</p>
+      ${optsHTML("stay", [[0, t("Без значение")], [6, t("6 месеца")], [10, t("Учебна година")], [12, t("1 година")], [24, t("2+ години")]], f.stay)}</div>
+    <div class="fsec"><h3>${t("Нанасяне до")}</h3><p>${t("Показва жилищата, свободни до тази дата.")}</p>
       <input class="inp" type="date" id="fMove" value="${f.moveIn}" style="max-width:240px"></div>
-    <div class="fsec"><h3>Удобства</h3>
-      <div class="opts tiles" data-name="amenities" data-multi>${Object.entries(AMENITIES).map(([k, [t, ic]]) =>
-        `<button type="button" data-v="${k}" aria-pressed="${f.amenities.includes(k)}">${icon(ic, 24)}${t}</button>`).join("")}</div></div>
-    <div class="fsec"><h3>Рейтинг</h3>${optsHTML("minRating", [[0, "Всички"], [4, "4+"], [4.5, "4,5+"], [4.8, "4,8+"]], f.minRating)}</div>
-    <div class="fsec"><h3>Доверие</h3>
-      <label class="check"><input type="checkbox" id="fVer" ${f.verifiedOnly ? "checked" : ""}><span><b>Потвърден студентски имейл</b><br><span class="muted">Домакинът е потвърдил имейл от университета.</span></span></label>
-      <label class="check"><input type="checkbox" id="fCons" ${f.consentOnly ? "checked" : ""}><span><b>Хазяинът е съгласен</b><br><span class="muted">Само стаи, за които собственикът е дал съгласие за нов съквартирант.</span></span></label>
-      <label class="check"><input type="checkbox" id="fGen" ${f.showAllGenders ? "checked" : ""}><span><b>Покажи и обяви за друг пол</b><br><span class="muted">По подразбиране скриваме стаите, в които търсят съквартирант от друг пол.</span></span></label></div>
-    <div class="modal-foot"><button class="btn link" id="fClear">Изчисти всички</button><button class="btn dark" id="fGo"></button></div>`,
-  { cls: "", label: "Филтри" });
+    <div class="fsec"><h3>${t("Удобства")}</h3>
+      <div class="opts tiles" data-name="amenities" data-multi>${Object.entries(AMENITIES).map(([k, [label, ic]]) =>
+        `<button type="button" data-v="${k}" aria-pressed="${f.amenities.includes(k)}">${icon(ic, 24)}${t(label)}</button>`).join("")}</div></div>
+    <div class="fsec"><h3>${t("Рейтинг")}</h3>${optsHTML("minRating", [[0, t("Всички")], [4, "4+"], [4.5, S.lang === "en" ? "4.5+" : "4,5+"], [4.8, S.lang === "en" ? "4.8+" : "4,8+"]], f.minRating)}</div>
+    <div class="fsec"><h3>${t("Доверие")}</h3>
+      <label class="check"><input type="checkbox" id="fVer" ${f.verifiedOnly ? "checked" : ""}><span><b>${t("Потвърден студентски имейл")}</b><br><span class="muted">${t("Домакинът е потвърдил имейл от университета.")}</span></span></label>
+      <label class="check"><input type="checkbox" id="fCons" ${f.consentOnly ? "checked" : ""}><span><b>${t("Хазяинът е съгласен")}</b><br><span class="muted">${t("Само стаи, за които собственикът е дал съгласие за нов съквартирант.")}</span></span></label>
+      <label class="check"><input type="checkbox" id="fGen" ${f.showAllGenders ? "checked" : ""}><span><b>${t("Покажи и обяви за друг пол")}</b><br><span class="muted">${t("По подразбиране скриваме стаите, в които търсят съквартирант от друг пол.")}</span></span></label></div>
+    <div class="modal-foot"><button class="btn link" id="fClear">${t("Изчисти всички")}</button><button class="btn dark" id="fGo"></button></div>`,
+  { cls: "", label: t("Филтри") });
 
   const el = m.el;
   const upd = () => {
     const max = +$("#fMax", el).value, com = +$("#fCom", el).value;
     f.maxPrice = max >= hi ? 0 : max; f.maxCommute = com >= 60 ? 0 : com;
     f.moveIn = $("#fMove", el).value; f.verifiedOnly = $("#fVer", el).checked; f.consentOnly = $("#fCons", el).checked; f.showAllGenders = $("#fGen", el).checked;
-    $("#fMaxV", el).textContent = f.maxPrice ? `до €${f.maxPrice}` : "всяка цена";
-    $("#fComV", el).textContent = f.maxCommute ? `до ${f.maxCommute} мин` : "без ограничение";
+    $("#fMaxV", el).textContent = f.maxPrice ? t("до €{n}", { n: f.maxPrice }) : t("всяка цена");
+    $("#fComV", el).textContent = f.maxCommute ? t("до {n} мин", { n: f.maxCommute }) : t("без ограничение");
     $$("#hist i", el).forEach(i => i.classList.toggle("in", !f.maxPrice || +i.dataset.b <= f.maxPrice));
-    const n = search(store.listings(), f, { me: store.me(), uniId: uni.id, userById: store.user, reviewsFor: store.reviewsFor }).length;
-    $("#fGo", el).textContent = n ? `Покажи ${plural(n, "обява", "обяви")}` : "Няма обяви";
+    const grp = store.groupOf();
+    const n = search(store.listings(), f, { me: store.me(), uniId: uni.id, userById: store.user, reviewsFor: store.reviewsFor, groupSize: grp ? store.groupMembers(grp).length : 0 }).length;
+    $("#fGo", el).textContent = n ? t("Покажи {n}", { n: plural(n, "обява", "обяви") }) : t("Няма обяви");
   };
   el.addEventListener("input", upd);
   el.addEventListener("click", e => {
@@ -221,5 +267,5 @@ export function filtersModal(onApply = rerender) {
 }
 
 function optsHTML(name, pairs, cur) {
-  return `<div class="opts" data-name="${name}">${pairs.map(([v, t]) => `<button type="button" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${t}</button>`).join("")}</div>`;
+  return `<div class="opts" data-name="${name}">${pairs.map(([v, label]) => `<button type="button" data-v="${v}" aria-pressed="${String(v) === String(cur)}">${label}</button>`).join("")}</div>`;
 }

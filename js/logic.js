@@ -1,6 +1,9 @@
 // Pure domain logic: no DOM, no storage. Covered by tests/logic.test.js.
-import { UNIVERSITIES, uniById } from "./data/places.js";
+import { UNIVERSITIES, uniById, districtName } from "./data/places.js";
 import { commuteMin, seaDistanceM } from "./geo.js";
+import { t, plural, getLang, locale } from "./i18n.js";
+
+export { plural };
 
 export const AMENITIES = {
   furnished: ["Обзаведено", "sofa"],
@@ -36,15 +39,22 @@ export function priceSplit(l) {
 // Scoring from the product spec. Weights are placeholders until real match data exists.
 export function compatWith(me, other) {
   const why = []; let s = 100;
-  if (other.smoke !== me.smoke) { s -= 25; why.push(["n", other.smoke ? "Пуши вкъщи, а ти не" : "Не пуши, а ти пушиш"]); }
-  else why.push(["y", other.smoke ? "И двамата пушите" : "И двамата не пушите"]);
-  if (other.sleep !== me.sleep) { s -= 15; why.push(["n", "Различен режим на сън"]); }
-  else why.push(["y", other.sleep === "early" ? "И двамата лягате рано" : "И двамата лягате късно"]);
+  if (other.smoke !== me.smoke) { s -= 25; why.push(["n", t(other.smoke ? "Пуши вкъщи, а ти не" : "Не пуши, а ти пушиш")]); }
+  else why.push(["y", t(other.smoke ? "И двамата пушите" : "И двамата не пушите")]);
+  if (other.sleep !== me.sleep) { s -= 15; why.push(["n", t("Различен режим на сън")]); }
+  else why.push(["y", t(other.sleep === "early" ? "И двамата лягате рано" : "И двамата лягате късно")]);
   const dc = Math.abs(other.clean - me.clean); s -= dc * 12;
-  why.push([dc ? "n" : "y", dc ? "Различни разбирания за чистота" : "Сходни разбирания за чистота"]);
+  why.push([dc ? "n" : "y", t(dc ? "Различни разбирания за чистота" : "Сходни разбирания за чистота")]);
   const dg = Math.abs(other.guests - me.guests); s -= dg * 9;
-  why.push([dg ? "n" : "y", dg ? "Различно отношение към гостите" : "Сходно отношение към гостите"]);
+  why.push([dg ? "n" : "y", t(dg ? "Различно отношение към гостите" : "Сходно отношение към гостите")]);
   return { score: Math.max(20, s), why };
+}
+
+// Average pairwise compatibility inside a group of people.
+export function groupCompat(people) {
+  const scores = [];
+  for (let i = 0; i < people.length; i++) for (let j = i + 1; j < people.length; j++) scores.push(compatWith(people[i], people[j]).score);
+  return scores.length ? Math.round(avg(scores)) : null;
 }
 
 // Compatibility with everyone already living in the flat. Whole-flat listings have no residents.
@@ -69,7 +79,30 @@ export function ratingSummary(reviews) {
 
 export const isTopRated = rs => rs.count >= 5 && rs.overall >= 4.85;
 
-export const fmtRating = x => x == null ? "" : x.toFixed(2).replace(/0$/, "").replace(".", ",");
+export const fmtRating = x => x == null ? "" : x.toFixed(2).replace(/0$/, "").replace(".", getLang() === "en" ? "." : ",");
+
+// ---------- fair price ----------
+const median = xs => { const a = xs.slice().sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+
+// Compares a listing with others of the same type: same district when there are at least 3, else the whole city.
+export function fairPrice(l, listings) {
+  const others = listings.filter(o => o.id !== l.id && o.status === "active" && o.type === l.type);
+  const near = others.filter(o => o.district === l.district);
+  const pool = near.length >= 3 ? near : others.length >= 3 ? others : null;
+  if (!pool) return null;
+  const med = Math.round(median(pool.map(pricePerPerson)));
+  const pp = pricePerPerson(l);
+  return { median: med, diff: pp - med, pct: (pp - med) / med, scope: pool === near ? "district" : "city", n: pool.length };
+}
+
+export function fairLabel(f, district) {
+  if (!f) return "";
+  const where = f.scope === "district" ? t("за {d}", { d: districtName(district) }) : t("за града");
+  if (Math.abs(f.pct) < 0.05) return t("Около средното {where} (€{m})", { where, m: f.median });
+  return f.diff < 0 ? t("€{d} под средното {where} (€{m})", { d: -f.diff, where, m: f.median })
+    : t("€{d} над средното {where} (€{m})", { d: f.diff, where, m: f.median });
+}
+export const isGoodDeal = f => !!f && f.pct <= -0.08;
 
 // ---------- search ----------
 const LAT = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",
@@ -81,8 +114,8 @@ export const normalize = s => String(s || "").toLowerCase().replace(/[„“"'.,
 export function haystack(l, userById) {
   const host = userById(l.hostId);
   const uni = host && uniById(host.university);
-  return normalize([l.title, l.description, l.district, TYPE_LABEL[l.type],
-    ...l.amenities.map(a => AMENITIES[a]?.[0]), host?.name, uni?.short, uni?.name].join(" "));
+  return normalize([l.title, l.description, l.district, districtName(l.district), TYPE_LABEL[l.type], t(TYPE_LABEL[l.type]),
+    ...l.amenities.flatMap(a => AMENITIES[a] ? [AMENITIES[a][0], t(AMENITIES[a][0])] : []), host?.name, uni?.short, uni?.shortLat, uni?.name, uni?.nameEn].join(" "));
 }
 
 export function matchesQuery(l, q, userById) {
@@ -99,6 +132,8 @@ export const CATEGORIES = [
   { id: "match", label: "Високо съвпадение", icon: "users" },
   { id: "close", label: "До 15 мин от уни", icon: "graduation-cap" },
   { id: "sea", label: "До морето", icon: "waves" },
+  { id: "group", label: "За групата ни", icon: "users" },
+  { id: "fair", label: "Изгодни", icon: "wallet" },
   { id: "loved", label: "Топ оценка", icon: "trophy" },
   { id: "budget", label: "До €280", icon: "wallet" },
   { id: "balcony", label: "С балкон", icon: "sun" },
@@ -114,7 +149,7 @@ export const DEFAULT_FILTERS = {
 
 // Returns enriched rows {l, pp, commute, compat, rating} that pass the filters, sorted.
 export function search(listings, f, ctx) {
-  const { me, uniId, userById, reviewsFor, now = new Date() } = ctx;
+  const { me, uniId, userById, reviewsFor, now = new Date(), groupSize = 0 } = ctx;
   const uni = uniById(uniId) || UNIVERSITIES[0];
   const rows = [];
   for (const l of listings) {
@@ -137,14 +172,17 @@ export function search(listings, f, ctx) {
     if (f.minRating && !(rating.overall >= f.minRating)) continue;
     const compat = listingCompat(l, me, userById);
     const row = { l, pp, commute, compat, rating };
-    if (!inCategory(row, f.category, userById, now)) continue;
+    if (f.category === "fair") row.fair = fairPrice(l, listings);
+    if (!inCategory(row, f.category, userById, now, groupSize)) continue;
     rows.push(row);
   }
   return sortRows(rows, f.sort);
 }
 
-function inCategory({ l, pp, commute, compat, rating }, cat, userById, now) {
+function inCategory({ l, pp, commute, compat, rating, fair }, cat, userById, now, groupSize) {
   switch (cat) {
+    case "group": return l.type === "whole" && groupSize >= 2 && l.occupants === groupSize;
+    case "fair": return isGoodDeal(fair);
     case "room": case "whole": return l.type === cat;
     case "match": return !!compat && compat.score >= 80;
     case "close": return commute <= 15;
@@ -171,15 +209,15 @@ export function sortRows(rows, sort) {
 }
 
 // ---------- formatting ----------
-const MONTHS = ["януари","февруари","март","април","май","юни","юли","август","септември","октомври","ноември","декември"];
 export function fmtDate(iso, now = new Date()) {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
-  if (d <= now) return "веднага";
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}` + (d.getFullYear() !== now.getFullYear() ? ` ${d.getFullYear()}` : "");
+  if (d <= now) return t("веднага");
+  const o = { day: "numeric", month: "long" };
+  if (d.getFullYear() !== now.getFullYear()) o.year = "numeric";
+  return d.toLocaleDateString(locale(), o).replace(/ г\.$/, "");
 }
-export const fmtMonthYear = iso => { const d = new Date(iso); return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
-export const fmtMonths = n => n >= 12 && n % 12 === 0 ? (n === 12 ? "1 година" : `${n / 12} години`) : `${n} месеца`;
-export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+export const fmtMonthYear = iso => new Date(iso).toLocaleDateString(locale(), { month: "long", year: "numeric" }).replace(/ г\.$/, "");
+export const fmtMonths = n => n >= 12 && n % 12 === 0 ? plural(n / 12, "година", "години") : plural(n, "месец", "месеца");
 export const eur = v => { const r = Math.round(v * 100) / 100;
-  return "€" + r.toLocaleString("bg-BG", { minimumFractionDigits: r % 1 ? 2 : 0, maximumFractionDigits: 2 }); };
+  return "€" + r.toLocaleString(locale(), { minimumFractionDigits: r % 1 ? 2 : 0, maximumFractionDigits: 2 }); };

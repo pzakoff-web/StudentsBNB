@@ -117,5 +117,69 @@ test("store: create, edit, privacy, favourites, threads", () => {
   store.deleteListing(l.id);
   assert.equal(store.listing(l.id), null);
   assert.ok(!store.me().favorites.includes(l.id));
-  assert.ok(JSON.parse(mem.get("delim:db:v1")).listings.length > 0, "persisted");
+  assert.ok(JSON.parse(mem.get("delim:db")).listings.length > 0, "persisted");
+});
+
+test("migration v1 → v2 keeps user data and adds new collections", async () => {
+  const { migrate, DB_VERSION } = await import("../js/store.js");
+  const old = { version: 1, users: [{ id: "x" }], listings: [{ id: "mine" }], reviews: [], threads: [] };
+  const m = migrate(structuredClone(old));
+  assert.equal(m.version, DB_VERSION);
+  assert.deepEqual(m.listings, old.listings);
+  assert.deepEqual([m.savedSearches, m.notifications, m.groups], [[], [], []]);
+});
+
+test("store: old v1 data is migrated, not wiped", () => {
+  const mem = new Map();
+  const v1 = buildSeed(NOW); v1.version = 1; delete v1.savedSearches; delete v1.notifications; delete v1.groups; delete v1.seedVersion;
+  v1.listings[0].title = "Моята редакция";
+  mem.set("delim:db:v1", JSON.stringify(v1));
+  store.initStore({ getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: k => mem.delete(k) });
+  assert.equal(store.listing("l1").title, "Моята редакция");
+  assert.equal(store.startupNotice(), "migrated");
+  assert.ok(!mem.has("delim:db:v1") && mem.has("delim:db"));
+});
+
+test("fair price compares with the district median", async () => {
+  const { fairPrice, isGoodDeal } = await import("../js/logic.js");
+  const mk = (id, rent, district = "Левски") => ({ id, type: "room", status: "active", district, rent, util: 0, occupants: 2 });
+  const ls = [mk("a", 600), mk("b", 640), mk("c", 680), mk("d", 500)];
+  const f = fairPrice(ls[3], ls);
+  assert.equal(f.median, 320);
+  assert.equal(f.diff, -70);
+  assert.equal(f.scope, "district");
+  assert.ok(isGoodDeal(f));
+  assert.equal(fairPrice(mk("z", 500, "Бриз"), [mk("y", 500, "Бриз")]), null, "too few listings to compare");
+});
+
+test("saved search notifies on a matching new listing only", () => {
+  const mem = new Map();
+  store.initStore({ getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: () => {} });
+  const seeker = store.me();
+  const before = store.notifications(seeker.id).length;
+  const host = store.users().find(u => u.role === "student" && u.id !== seeker.id && u.gender === "m");
+  store.switchUser(host.id);
+  const base = { description: "x".repeat(50), district: "Левски", address: "ул. Тест 1", exact: { lat: 43.2236, lng: 27.9215 },
+    util: 50, occupants: 2, genderPref: "any", minMonths: 12, availableFrom: "2026-10-01", rooms: 2, area: 55, floor: 3, amenities: [], photos: [], deposit: 250, landlordConsent: true };
+  store.createListing({ ...base, type: "room", title: "Евтина стая", rent: 500 });   // €275 → matches "rooms up to €350"
+  store.createListing({ ...base, type: "room", title: "Скъпа стая", rent: 900 });    // €475 → no
+  store.switchUser(seeker.id);
+  const fresh = store.notifications(seeker.id).slice(0, store.notifications(seeker.id).length - before);
+  assert.equal(fresh.length, 1);
+  assert.equal(store.listing(fresh[0].listingId).title, "Евтина стая");
+});
+
+test("groups: budget is the tightest member budget; one group per person", () => {
+  const mem = new Map();
+  store.initStore({ getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: () => {} });
+  const g = store.group("g1");
+  const members = store.groupMembers(g);
+  assert.equal(members.length, 3);
+  assert.equal(store.groupBudget(g), Math.min(...members.map(u => u.budget)));
+  const me = store.me();
+  const mine = store.createGroup("Тест");
+  assert.equal(store.groupOf(me.id).id, mine.id);
+  store.switchUser(members[1].id);
+  store.leaveGroup("g1");
+  assert.equal(store.groupMembers(store.group("g1")).length, 2);
 });

@@ -3,8 +3,8 @@
 The user (Petar Zakov) writes in Bulgarian; reply in Bulgarian unless told otherwise. He prefers terse, direct answers. The UI language is Bulgarian. "делим" is a working name only.
 
 ## Status
-- Working client-side prototype (v0.2): `index.html` + `css/` + `js/`, vanilla ES modules, no build step. Data lives in the browser (localStorage + IndexedDB for photos) and is seeded with demo data on first load.
-- Run: `npm start` (python http.server on :8080). Test: `npm test` (node:test, no dependencies). ES modules do not load from `file://`.
+- Working client-side prototype (v0.3): `index.html` + `css/` + `js/`, vanilla ES modules, no build step. Data lives in the browser (localStorage + IndexedDB for photos) and is seeded with demo data on first load. Live at https://pzakoff-web.github.io/StudentsBNB/ (GitHub Pages from `master`).
+- Run: `npm start` (python http.server on :8080). Unit tests: `npm test` (node:test). Browser tests: `npm run test:e2e` (Playwright; serves the repo itself). CI runs both on every push (`.github/workflows/ci.yml`). ES modules do not load from `file://`.
 - `delim-mockup.html` is the original single-file mockup, kept only as a reference for the first UX.
 - Still no backend, auth or hosting decision. `js/store.js` is the only data layer; replace it with API calls when a backend exists.
 
@@ -14,14 +14,19 @@ The user (Petar Zakov) writes in Bulgarian; reply in Bulgarian unless told other
 - `js/logic.js` pure logic: per-person price, compatibility, search/filters/categories, ratings, formatting. Tested.
 - `js/geo.js` distance, 100 m privacy circle, commute estimate, Nominatim geocoding.
 - `js/store.js` persistence and all mutations; `js/photos.js` uploads (IndexedDB) and generated room illustrations for seed listings.
-- `js/views/*` screens: explore (search + map), listing, profile/edit, people (seekers), inbox, host (my listings + 8-step wizard).
+- `js/views/*` screens: explore (search + map), listing, profile/edit, people (seekers), inbox, host (my listings + 8-step wizard), notifications (+ saved searches), group, share (Facebook card).
+- `js/i18n.js` + `js/i18n/{en,de}.js`: `t("bulgarian text", {vars})`. Bulgarian source strings are the keys. Every new UI string must go through `t()` (or a label table listed in `scripts/i18n-keys.py`) and get EN + DE entries; `tests/i18n.test.js` fails otherwise. User content (titles, bios, reviews) is not translated. Default language is Bulgarian regardless of the phone's locale.
+- Data schema is versioned (`DB_VERSION` in `js/store.js`). Changing the stored shape needs a step in `MIGRATIONS`, never a wipe. `SEED_VERSION` in `seed.js` is only for deliberate demo-data resets.
 
 ## Decisions taken in the prototype
 - Exact address is stored privately. Everyone else sees a 100 m circle whose centre is offset randomly **once** at save time (recomputing per view would let people average it back). The address unlocks only for the owner or after both sides agree to share phones in chat. The street address is excluded from search for the same reason.
 - Commute = faster of walking and bus (9 min walk/wait + road distance at 22 km/h). Placeholder until real GTFS data.
 - Map tiles: OpenStreetMap standard tiles, CSS-muted to look like Airbnb. OK for a prototype only; production needs a keyed provider. CARTO now requires an API key.
 - Visual identity is deliberately our own, not Airbnb's (the user asked to avoid trade-dress risk): no coral red, no segmented search pill, no icon category row, no 1+4 photo grid, no "Guest favourite" laurels, no copied section titles. Keep it that way.
-- Demo-only shortcuts, all labelled in the UI: auto-reply in chat, auto-accept of phone sharing, e-mail code shown in a toast, anyone can write a review, "Влез като" user switcher.
+- Demo-only shortcuts, all labelled in the UI: auto-reply in chat, auto-accept of phone sharing and group invites, e-mail code shown in a toast, anyone can write a review, "Влез като" user switcher, notifications only in-app (no e-mail).
+- Fair price: per-person price vs the median of the same listing type in the same district (≥3 listings) or else the city; "Изгодна" at ≥8% below.
+- Groups: one group per person; group budget = lowest member budget; "За групата ни" shows whole flats with occupants equal to the group size.
+- Flatmate agreement template stays in Bulgarian in every UI language (Bulgarian law).
 
 ## Canonical test case
 A student has a 2-bedroom flat. His flatmate graduated, so one bedroom is free. Rent is €600 total and utilities average ~€65/month, split equally. Male seeking male. He needs the flat for 2 more years.
